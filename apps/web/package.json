@@ -1,0 +1,23 @@
+{
+  "name": "@autotrader/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "src/server.ts",
+  "types": "src/server.ts",
+  "scripts": {
+    "dev": "tsx src/server.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@autotrader/core": "workspace:*",
+    "@autotrader/solana": "workspace:*",
+    "@autotrader/store": "workspace:*",
+    "@autotrader/ui-kit": "workspace:*",
+    "@solana/web3.js": "^1.98.0",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0"
+  }
+}

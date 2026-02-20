@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SOLANA // BRANTSWAP TERMINAL</title>
+    <link rel="stylesheet" href="/assets/ui-kit.css" />
+  </head>
+  <body>
+    <main>
+      <nav class="nav">
+        <a href="/">CONTROL PANEL</a>
+        <a href="/legacy">LEGACY GREEN MODE</a>
+      </nav>
+
+      <h1><span class="h1-glyph">█ █</span> SOLANA // BRANTSWAP TERMINAL <span class="h1-glyph">█ █</span></h1>
+
+      <section class="block reveal">
+        <h2 class="block-title">OPERATIONS</h2>
+        <div class="controls">
+          <button class="btn-connect" id="btn-connect">CONNECT</button>
+          <button class="btn-swap" id="btn-swap">EXECUTE PING</button>
+          <span class="mono-note">===== AUTO MODE ACTIVE / NO INPUT REQUIRED =====</span>
+        </div>
+      </section>
+
+      <section class="block reveal">
+        <h2 class="block-title">SYSTEM STATUS</h2>
+        <div class="stat-row"><span>MODE</span><span class="stat-val" id="mode-val">BOOTING</span></div>
+        <div class="stat-row"><span>RPC HEALTH</span><span class="stat-val" id="rpc-val">CHECKING</span></div>
+        <div class="stat-row"><span>WALLET</span><span class="stat-val" id="wallet-val">N/A</span></div>
+        <div class="stat-row"><span>SOL BALANCE</span><span class="stat-val" id="balance-val">0.0000</span></div>
+      </section>
+
+      <section class="block reveal">
+        <h2 class="block-title">RISK LIMITS</h2>
+        <div class="stat-row"><span>KILL SWITCH</span><span class="stat-val" id="kill-val">OFF</span></div>
+        <div class="stat-row"><span>AT RISK / CAP</span><span class="stat-val" id="risk-val">0.0000 / 0.0000 SOL</span></div>
+        <div class="stat-row"><span>TRADES/HOUR</span><span class="stat-val" id="trades-val">0 / 0</span></div>
+        <div class="stat-row"><span>CIRCUIT BREAKER</span><span class="stat-val" id="circuit-val">CLOSED</span></div>
+      </section>
+
+      <section class="block reveal">
+        <h2 class="block-title">SCANNER</h2>
+        <div class="stat-row"><span>LAST SCAN</span><span class="stat-val" id="scan-time-val">N/A</span></div>
+        <div class="stat-row"><span>POOLS SEEN</span><span class="stat-val" id="pools-val">0</span></div>
+        <div class="stat-row"><span>CANDIDATES</span><span class="stat-val" id="candidates-val">0</span></div>
+      </section>
+
+      <section class="block reveal">
+        <h2 class="block-title">POSITIONS</h2>
+        <div id="positions-list" class="positions-empty">NO ACTIVE POSITIONS</div>
+      </section>
+
+      <section class="block reveal">
+        <h2 class="block-title">LOG</h2>
+        <div id="log"></div>
+        <div class="mono-note">OPS&gt;<span class="blink">_</span></div>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

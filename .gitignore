@@ -1,0 +1,10 @@
+node_modules
+dist
+.turbo
+.cache
+.DS_Store
+.env
+data/*.db
+data/*.db-shm
+data/*.db-wal
+logs
