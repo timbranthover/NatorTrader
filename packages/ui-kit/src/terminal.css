@@ -301,12 +301,27 @@ button:disabled {
 .position-head {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 8px;
+}
+
+.position-link {
+  color: var(--hi);
+  text-decoration: none;
+  word-break: break-all;
+  max-width: calc(100% - 120px);
+}
+
+.position-link:hover,
+.position-link:focus-visible {
+  background: var(--hi);
+  color: #120900;
 }
 
 .position-meta {
   margin-top: 4px;
   color: var(--dim);
+  word-break: break-word;
 }
 
 body.theme-legacy {

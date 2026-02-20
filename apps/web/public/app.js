@@ -111,10 +111,18 @@
 
       const head = document.createElement("div");
       head.className = "position-head";
-      head.innerHTML = `
-        <span class="hi">${position.tokenMint.slice(0, 6)}...${position.tokenMint.slice(-4)}</span>
-        <span>${fmtNumber(position.entryNotionalSol, 4)} SOL</span>
-      `;
+      const mintLink = document.createElement("a");
+      mintLink.className = "position-link hi";
+      mintLink.href = `https://solscan.io/token/${position.tokenMint}`;
+      mintLink.target = "_blank";
+      mintLink.rel = "noopener noreferrer";
+      mintLink.textContent = String(position.tokenMint);
+
+      const notional = document.createElement("span");
+      notional.textContent = `${fmtNumber(position.entryNotionalSol, 4)} SOL`;
+
+      head.appendChild(mintLink);
+      head.appendChild(notional);
 
       const currentQuote = Number(position.metadata?.currentValueSol || 0);
       const pnlPct = Number(position.metadata?.pnlPct || 0);

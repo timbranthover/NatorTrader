@@ -14,6 +14,7 @@
     "bot:live": "cross-env MODE=live corepack pnpm --filter @autotrader/bot dev",
     "web": "corepack pnpm --filter @autotrader/web dev",
     "db:reset": "corepack pnpm --filter @autotrader/store db:reset",
+    "perf": "corepack pnpm --filter @autotrader/store perf",
     "typecheck": "corepack pnpm -r typecheck"
   },
   "pnpm": {

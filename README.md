@@ -177,6 +177,7 @@ Reset DB:
 - Bot only (paper): `pnpm bot:paper`
 - Bot only (live): `pnpm bot:live`
 - Web only: `pnpm web`
+- Performance snapshot: `pnpm perf`
 
 VS Code tasks are included in `.vscode/tasks.json`:
 - `NatorTrader: Dev (Paper Full App)`
