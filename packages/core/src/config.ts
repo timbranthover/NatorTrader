@@ -73,6 +73,7 @@ const envSchema = z.object({
   BOT_POLL_SECONDS: intNum(15).refine((v) => v >= 5, "BOT_POLL_SECONDS must be >= 5"),
   MAX_CANDIDATES_PER_SCAN: intNum(4).refine((v) => v > 0, "MAX_CANDIDATES_PER_SCAN must be > 0"),
   MAX_SCAN_POOL_FETCH: intNum(20).refine((v) => v > 0, "MAX_SCAN_POOL_FETCH must be > 0"),
+  MODE_SCOPED_DB: bool(true),
   DB_PATH: z.string().default("./data/autotrader.db"),
   AUTHORITY_POLICY: z.enum(["strict", "permissive"]).default("permissive"),
   TOKEN_COOLDOWN_MINUTES: intNum(180).refine((v) => v >= 0, "TOKEN_COOLDOWN_MINUTES must be >= 0"),
@@ -95,6 +96,26 @@ const envSchema = z.object({
 
 let cachedConfig: BotConfig | null = null;
 
+function withModeDbSuffix(inputPath: string, mode: "paper" | "live"): string {
+  const parsed = path.parse(inputPath);
+  const ext = parsed.ext || ".db";
+  const suffix = `.${mode}`;
+  if (parsed.name.endsWith(suffix)) {
+    return path.join(parsed.dir, `${parsed.name}${ext}`);
+  }
+  return path.join(parsed.dir, `${parsed.name}${suffix}${ext}`);
+}
+
+function resolveModeScopedDbPath(rawDbPath: string, mode: "paper" | "live", modeScoped: boolean): string {
+  const templated = rawDbPath.includes("{mode}")
+    ? rawDbPath.replaceAll("{mode}", mode)
+    : rawDbPath;
+  if (!modeScoped || rawDbPath.includes("{mode}")) {
+    return templated;
+  }
+  return withModeDbSuffix(templated, mode);
+}
+
 export function loadConfig(): BotConfig {
   if (cachedConfig) {
     return cachedConfig;
@@ -111,7 +132,7 @@ export function loadConfig(): BotConfig {
 
   cachedConfig = {
     ...parsed,
-    DB_PATH: path.resolve(baseDir, parsed.DB_PATH),
+    DB_PATH: path.resolve(baseDir, resolveModeScopedDbPath(parsed.DB_PATH, parsed.MODE, parsed.MODE_SCOPED_DB)),
     KILL_SWITCH_FILE_PATH: path.resolve(baseDir, parsed.KILL_SWITCH_FILE_PATH),
     WALLET_KEYPAIR_PATH: parsed.WALLET_KEYPAIR_PATH ? path.resolve(baseDir, parsed.WALLET_KEYPAIR_PATH) : undefined,
   };

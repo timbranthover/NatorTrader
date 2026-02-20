@@ -48,6 +48,13 @@ packages/
   - simulates tx pre-send
   - confirms tx and verifies post-balance deltas
 
+Mode data isolation:
+- by default `MODE_SCOPED_DB=true`, so each mode uses a separate SQLite file
+- example: `DB_PATH=./data/autotrader.db` resolves to:
+  - paper: `./data/autotrader.paper.db`
+  - live: `./data/autotrader.live.db`
+- this prevents paper positions/logs from contaminating live mode
+
 ## Setup
 
 Prerequisites:
@@ -173,6 +180,8 @@ Dropdown hover highlight:
 
 Reset DB:
 - `pnpm db:reset`
+- `pnpm db:reset:paper`
+- `pnpm db:reset:live`
 
 ## API Endpoints
 

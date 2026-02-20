@@ -38,6 +38,7 @@ export interface BotConfig {
   BOT_POLL_SECONDS: number;
   MAX_CANDIDATES_PER_SCAN: number;
   MAX_SCAN_POOL_FETCH: number;
+  MODE_SCOPED_DB: boolean;
   DB_PATH: string;
   AUTHORITY_POLICY: AuthorityPolicy;
   TOKEN_COOLDOWN_MINUTES: number;
