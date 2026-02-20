@@ -178,6 +178,13 @@ Reset DB:
 - Bot only (live): `pnpm bot:live`
 - Web only: `pnpm web`
 
+VS Code tasks are included in `.vscode/tasks.json`:
+- `NatorTrader: Dev (Paper Full App)`
+- `NatorTrader: Live (Full App)`
+- `NatorTrader: Bot Paper`
+- `NatorTrader: Bot Live`
+- `NatorTrader: Web Only`
+
 ## Explicit Assumptions (No Silent Guessing)
 
 1. Discovery uses GeckoTerminal `new_pools` as a reliable v1 source for newly tradeable pools.

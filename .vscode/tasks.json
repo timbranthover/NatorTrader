@@ -1,0 +1,58 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "NatorTrader: Install",
+      "type": "shell",
+      "command": "corepack pnpm install",
+      "problemMatcher": []
+    },
+    {
+      "label": "NatorTrader: Wallet New",
+      "type": "shell",
+      "command": "corepack pnpm wallet:new",
+      "problemMatcher": []
+    },
+    {
+      "label": "NatorTrader: DB Reset",
+      "type": "shell",
+      "command": "corepack pnpm db:reset",
+      "problemMatcher": []
+    },
+    {
+      "label": "NatorTrader: Dev (Paper Full App)",
+      "type": "shell",
+      "command": "corepack pnpm dev",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "NatorTrader: Live (Full App)",
+      "type": "shell",
+      "command": "corepack pnpm live",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "NatorTrader: Bot Paper",
+      "type": "shell",
+      "command": "corepack pnpm bot:paper",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "NatorTrader: Bot Live",
+      "type": "shell",
+      "command": "corepack pnpm bot:live",
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "NatorTrader: Web Only",
+      "type": "shell",
+      "command": "corepack pnpm web",
+      "isBackground": true,
+      "problemMatcher": []
+    }
+  ]
+}
