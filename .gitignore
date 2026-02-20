@@ -4,7 +4,7 @@ dist
 .cache
 .DS_Store
 .env
-data/*.db
-data/*.db-shm
-data/*.db-wal
+*.db
+*.db-shm
+*.db-wal
 logs
