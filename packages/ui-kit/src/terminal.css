@@ -49,9 +49,21 @@ body::before {
 }
 
 main {
-  max-width: 900px;
+  max-width: 1400px;
   margin: 0;
   padding: 14px 16px 42px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 1.05fr 1fr 1.35fr;
+  grid-template-areas:
+    "ops ops ops"
+    "system risk scanner"
+    "performance performance positions"
+    "activity log log";
+  gap: 14px;
+  align-items: start;
 }
 
 .nav {
@@ -93,6 +105,10 @@ h1 {
   padding: 14px 16px;
   margin-bottom: 14px;
   transition: border-color 120ms ease, transform 120ms ease;
+}
+
+.dashboard-grid .block {
+  margin-bottom: 0;
 }
 
 .block.reveal {
@@ -229,7 +245,7 @@ button:disabled {
 }
 
 #log {
-  height: 280px;
+  height: 410px;
   overflow-y: auto;
   border: 1px solid var(--border);
   background: var(--log);
@@ -241,7 +257,7 @@ button:disabled {
 }
 
 #activity-log {
-  height: 180px;
+  height: 240px;
   overflow-y: auto;
   border: 1px solid var(--border);
   background: var(--log);
@@ -270,30 +286,15 @@ button:disabled {
 
 #log,
 #activity-log {
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) var(--log);
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
 #log::-webkit-scrollbar,
 #activity-log::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-#log::-webkit-scrollbar-track,
-#activity-log::-webkit-scrollbar-track {
-  background: #0a0600;
-}
-
-#log::-webkit-scrollbar-thumb,
-#activity-log::-webkit-scrollbar-thumb {
-  background: var(--border);
-  border: 1px solid #3a2800;
-}
-
-#log::-webkit-scrollbar-thumb:hover,
-#activity-log::-webkit-scrollbar-thumb:hover {
-  background: var(--dim);
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .blink {
@@ -399,6 +400,60 @@ button:disabled {
   color: var(--text);
 }
 
+.wallet-line {
+  margin-top: 10px;
+  border-top: 1px dashed rgba(122, 82, 0, 0.32);
+  padding-top: 8px;
+}
+
+.wallet-label {
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 12px;
+}
+
+.wallet-full {
+  margin-top: 4px;
+  color: var(--hi);
+  font-size: 12px;
+  letter-spacing: 1px;
+  word-break: break-all;
+  user-select: text;
+}
+
+.grid-ops {
+  grid-area: ops;
+}
+
+.grid-system {
+  grid-area: system;
+}
+
+.grid-risk {
+  grid-area: risk;
+}
+
+.grid-scanner {
+  grid-area: scanner;
+}
+
+.grid-performance {
+  grid-area: performance;
+}
+
+.grid-positions {
+  grid-area: positions;
+}
+
+.grid-activity {
+  grid-area: activity;
+}
+
+.grid-log {
+  grid-area: log;
+}
+
 body.theme-legacy {
   --bg: #111;
   --panel: #0b130b;
@@ -441,6 +496,41 @@ body.theme-legacy {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@media (max-width: 1200px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "ops ops"
+      "system risk"
+      "scanner performance"
+      "positions positions"
+      "activity log";
+  }
+}
+
+@media (max-width: 760px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "ops"
+      "system"
+      "risk"
+      "scanner"
+      "performance"
+      "positions"
+      "activity"
+      "log";
+  }
+
+  #log {
+    height: 320px;
+  }
+
+  #activity-log {
+    height: 180px;
   }
 }
 

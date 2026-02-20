@@ -99,20 +99,30 @@ You should see:
 
 Discovery source:
 - GeckoTerminal `new_pools` endpoint polled every `BOT_POLL_SECONDS`
-- Scanner evaluates at most `MAX_CANDIDATES_PER_SCAN` pools each cycle (rate-limit guard)
+- Scanner pre-fetches up to `MAX_SCAN_POOL_FETCH` newest pools, pre-ranks by momentum, and evaluates at most `MAX_CANDIDATES_PER_SCAN` each cycle
 
 Hard filters:
 - min liquidity in SOL (`MIN_LIQUIDITY_SOL`)
+- market-cap/FDV range (`MIN_MC_USD`..`MAX_MC_USD`)
+- optional holder floor via Helius (`HELIUS_API_KEY`, `MIN_HOLDER_COUNT`)
+- minimum 5m USD volume (`MIN_VOLUME_M5_USD`)
+- sell-dominated 5m floor (reject if buy ratio < 50% when enough sample)
 - quote stability check (3 quotes in ~2s)
 - price impact cap
 - sell route existence check
 - mint/freeze authority checks
 
 Scoring:
-- freshness
-- swap-count/volume acceleration proxy
-- route quality (hops + price impact)
+- freshness (0-25)
+- virality (0-40):
+  - tx acceleration
+  - buy pressure ratio
+  - volume acceleration
+  - positive M5 price momentum
+- route quality (0-25)
 - authority penalty (strict/permissive)
+- quote instability penalty
+- additional sell-pressure penalty
 
 Trade only if:
 - hard filters pass
@@ -123,12 +133,15 @@ Trade only if:
 
 Entry:
 - buy `TRADE_SIZE_SOL` (or simulated)
+- optional dynamic sizing (`DYNAMIC_POSITION_SIZING`) scales between `TRADE_SIZE_SOL_MIN` and `TRADE_SIZE_SOL_MAX`
 
 Exit monitoring:
-- TP1: sell 50% at `TP1_PCT`
-- TP2: sell remaining at `TP2_PCT`
+- TP1: sell `TP1_SELL_RATIO` at `TP1_PCT`
+- TP2: sell `TP1_SELL_RATIO` at `TP2_PCT`
+- TP3: sell remaining at `TP3_PCT`
 - stop loss: full exit at `-SL_PCT`
 - time stop: full exit at `TIME_STOP_MINUTES`
+- trailing stop: full exit on `TRAILING_STOP_PCT` pullback from high-water price after TP1
 
 ## UI Contract
 

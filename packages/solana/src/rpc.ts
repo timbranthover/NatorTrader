@@ -151,3 +151,46 @@ export function uiToAtomic(amountUi: number, decimals: number): string {
   const base = 10 ** decimals;
   return String(Math.floor(amountUi * base));
 }
+
+export async function getTokenHolderCount(
+  heliusApiKey: string,
+  mint: string,
+): Promise<number | null> {
+  const url = `https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`;
+  const body = {
+    jsonrpc: "2.0",
+    id: "holder-count",
+    method: "getTokenAccounts",
+    params: {
+      mint,
+      limit: 1000,
+      options: { showZeroBalance: false },
+    },
+  };
+
+  try {
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), 600);
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: ac.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as {
+      result?: {
+        total?: number;
+        token_accounts?: unknown[];
+      };
+    };
+
+    return data.result?.total ?? data.result?.token_accounts?.length ?? null;
+  } catch {
+    return null;
+  }
+}

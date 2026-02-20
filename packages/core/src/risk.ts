@@ -71,7 +71,11 @@ export function isKillSwitchActive(path: string): boolean {
   }
 }
 
-export function canOpenNewPosition(config: BotConfig, context: RiskContext): RiskDecision {
+export function canOpenNewPosition(
+  config: BotConfig,
+  context: RiskContext,
+  plannedTradeSizeSol = config.TRADE_SIZE_SOL,
+): RiskDecision {
   const reasons: string[] = [];
 
   if (context.killSwitchActive) {
@@ -86,7 +90,7 @@ export function canOpenNewPosition(config: BotConfig, context: RiskContext): Ris
   if (context.tradesLastHour >= config.MAX_TRADES_PER_HOUR) {
     reasons.push("MAX_TRADES_PER_HOUR_REACHED");
   }
-  if (context.atRiskSol + config.TRADE_SIZE_SOL > config.MAX_SOL_AT_RISK) {
+  if (context.atRiskSol + plannedTradeSizeSol > config.MAX_SOL_AT_RISK) {
     reasons.push("MAX_SOL_AT_RISK_EXCEEDED");
   }
 

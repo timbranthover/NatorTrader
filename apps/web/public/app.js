@@ -2,12 +2,14 @@
   const logEl = document.getElementById("log");
   const activityLogEl = document.getElementById("activity-log");
   const btnConnect = document.getElementById("btn-connect");
+  const btnCopyWallet = document.getElementById("btn-copy-wallet");
   const btnSwap = document.getElementById("btn-swap");
 
   const statusNodes = {
     mode: document.getElementById("mode-val"),
     rpc: document.getElementById("rpc-val"),
     wallet: document.getElementById("wallet-val"),
+    walletFull: document.getElementById("wallet-full-val"),
     balance: document.getElementById("balance-val"),
     kill: document.getElementById("kill-val"),
     risk: document.getElementById("risk-val"),
@@ -27,6 +29,7 @@
   };
 
   let killSwitchActive = false;
+  let walletPubkeyCached = "";
 
   function fmtNumber(value, digits = 4) {
     const n = Number(value);
@@ -93,8 +96,21 @@
     statusNodes.rpc.textContent = rpcOk ? "OK" : `ERROR ${system.rpcError || ""}`.trim();
     statusNodes.rpc.className = `stat-val ${rpcOk ? "ok" : "err"}`;
 
-    statusNodes.wallet.textContent = String(system.walletMasked || "N/A").toUpperCase();
+    const walletMasked = String(system.walletMasked || "N/A");
+    const walletPubkey = String(system.walletPubkey || "N/A");
+    walletPubkeyCached = walletPubkey;
+
+    statusNodes.wallet.textContent = walletMasked;
     statusNodes.wallet.className = "stat-val hi";
+
+    if (statusNodes.walletFull) {
+      statusNodes.walletFull.textContent = walletPubkey;
+      statusNodes.walletFull.className = walletPubkey !== "N/A" ? "wallet-full hi" : "wallet-full dim";
+    }
+
+    if (btnCopyWallet) {
+      btnCopyWallet.disabled = walletPubkey === "N/A";
+    }
 
     statusNodes.balance.textContent = `${fmtNumber(system.walletBalanceSol, 4)} SOL`;
     statusNodes.balance.className = "stat-val";
@@ -362,6 +378,24 @@
       appendLog(`ERROR: KILL SWITCH UPDATE FAILED ${String(error)}`, "err");
     } finally {
       btnSwap.classList.remove("pulse");
+    }
+  });
+
+  btnCopyWallet?.addEventListener("click", async () => {
+    const value = walletPubkeyCached;
+    if (!value || value === "N/A") {
+      appendLog("WARNING: WALLET ADDRESS UNAVAILABLE", "warn");
+      return;
+    }
+
+    btnCopyWallet.classList.add("pulse");
+    try {
+      await navigator.clipboard.writeText(value);
+      appendLog(`CONFIRMED: WALLET COPIED ${value}`, "ok");
+    } catch (error) {
+      appendLog(`ERROR: WALLET COPY FAILED ${String(error)}`, "err");
+    } finally {
+      btnCopyWallet.classList.remove("pulse");
     }
   });
 

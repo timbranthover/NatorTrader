@@ -17,10 +17,18 @@ export interface BotConfig {
   RPC_URL: string;
   MODE: Mode;
   WALLET_KEYPAIR_PATH: string | undefined;
+  HELIUS_API_KEY: string;
   TRADE_SIZE_SOL: number;
+  TRADE_SIZE_SOL_MIN: number;
+  TRADE_SIZE_SOL_MAX: number;
+  DYNAMIC_POSITION_SIZING: boolean;
   MAX_SOL_AT_RISK: number;
   MAX_TRADES_PER_HOUR: number;
   MIN_LIQUIDITY_SOL: number;
+  MIN_MC_USD: number;
+  MAX_MC_USD: number;
+  MIN_HOLDER_COUNT: number;
+  MIN_VOLUME_M5_USD: number;
   SLIPPAGE_BPS: number;
   SCORE_THRESHOLD: number;
   KILL_SWITCH_FILE_PATH: string;
@@ -29,6 +37,7 @@ export interface BotConfig {
   WEB_PORT: number;
   BOT_POLL_SECONDS: number;
   MAX_CANDIDATES_PER_SCAN: number;
+  MAX_SCAN_POOL_FETCH: number;
   DB_PATH: string;
   AUTHORITY_POLICY: AuthorityPolicy;
   TOKEN_COOLDOWN_MINUTES: number;
@@ -37,6 +46,9 @@ export interface BotConfig {
   FRESH_POOL_WINDOW_MINUTES: number;
   TP1_PCT: number;
   TP2_PCT: number;
+  TP3_PCT: number;
+  TP1_SELL_RATIO: number;
+  TRAILING_STOP_PCT: number;
   SL_PCT: number;
   TIME_STOP_MINUTES: number;
   PRIORITY_FEE_LAMPORTS: number;
@@ -59,8 +71,17 @@ export interface PoolCandidate {
   txSellsM5: number;
   txBuysM15: number;
   txSellsM15: number;
+  txBuysM30: number;
+  txSellsM30: number;
+  txBuysH1: number;
+  txSellsH1: number;
   volumeM5Usd: number;
   volumeM15Usd: number;
+  volumeH1Usd: number;
+  priceChangeM5Pct: number;
+  priceChangeH1Pct: number;
+  marketCapUsd: number;
+  fdvUsd: number;
   raw: Record<string, unknown>;
 }
 
@@ -87,6 +108,12 @@ export interface ScoreResult {
   flow: number;
   route: number;
   penalties: number;
+  viralityDetail?: {
+    accelScore: number;
+    buyRatioScore: number;
+    volAccelScore: number;
+    momentumScore: number;
+  };
 }
 
 export interface StrategyDecision {
@@ -132,4 +159,12 @@ export interface SwapExecutionResult {
     outputAfter: string;
   };
   quote: Record<string, unknown>;
+}
+
+export interface ExitAction {
+  reason: "TP1" | "TP2" | "TP3" | "STOP_LOSS" | "TIME_STOP" | "TRAILING_STOP";
+  sellAmountRaw: string;
+  markTp1: boolean;
+  markTp2: boolean;
+  markTp3: boolean;
 }

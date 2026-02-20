@@ -67,7 +67,10 @@ export async function fetchPoolCandidates(
     const transactions = (attributes.transactions as Record<string, unknown> | undefined) ?? {};
     const txM5 = (transactions.m5 as Record<string, unknown> | undefined) ?? {};
     const txM15 = (transactions.m15 as Record<string, unknown> | undefined) ?? {};
+    const txM30 = (transactions.m30 as Record<string, unknown> | undefined) ?? {};
+    const txH1 = (transactions.h1 as Record<string, unknown> | undefined) ?? {};
     const volume = (attributes.volume_usd as Record<string, unknown> | undefined) ?? {};
+    const priceChange = (attributes.price_change_percentage as Record<string, unknown> | undefined) ?? {};
 
     candidates.push({
       poolId: String(pool.id ?? ""),
@@ -82,8 +85,17 @@ export async function fetchPoolCandidates(
       txSellsM5: toNumber(txM5.sells),
       txBuysM15: toNumber(txM15.buys),
       txSellsM15: toNumber(txM15.sells),
+      txBuysM30: toNumber(txM30.buys),
+      txSellsM30: toNumber(txM30.sells),
+      txBuysH1: toNumber(txH1.buys),
+      txSellsH1: toNumber(txH1.sells),
       volumeM5Usd: toNumber(volume.m5),
       volumeM15Usd: toNumber(volume.m15),
+      volumeH1Usd: toNumber(volume.h1),
+      priceChangeM5Pct: toNumber(priceChange.m5),
+      priceChangeH1Pct: toNumber(priceChange.h1),
+      marketCapUsd: toNumber(attributes.market_cap_usd),
+      fdvUsd: toNumber(attributes.fdv_usd),
       raw: {
         id: pool.id,
         attributes,
@@ -103,6 +115,20 @@ export async function fetchPoolCandidates(
     fetched: data.length,
     candidates: candidates.length,
   });
+  if (candidates.length > 0) {
+    const sample = candidates[0];
+    if (!sample) {
+      return candidates;
+    }
+    logger.debug("SCANNER_SAMPLE", "SCANNER ENRICHED SAMPLE", {
+      poolId: sample.poolId,
+      mint: sample.tradeMint,
+      txBuysM30: sample.txBuysM30,
+      priceChangeM5Pct: sample.priceChangeM5Pct,
+      marketCapUsd: sample.marketCapUsd,
+      fdvUsd: sample.fdvUsd,
+    });
+  }
 
   return candidates;
 }

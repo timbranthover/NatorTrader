@@ -140,29 +140,37 @@ app.get("/api/status", async (_req, res) => {
     rpcFallback = await checkRpcHealth(connection);
   }
 
-  let liveWalletMasked = "N/A";
-  let liveWalletBalance = 0;
-  if (config.MODE === "live" && config.WALLET_KEYPAIR_PATH) {
+  let configuredWalletPubkey = "N/A";
+  let configuredWalletMasked = "N/A";
+  let configuredWalletBalance = 0;
+  if (config.WALLET_KEYPAIR_PATH) {
     try {
       const wallet = loadKeypairFromFile(config.WALLET_KEYPAIR_PATH);
-      liveWalletMasked = maskPubkey(wallet.publicKey.toBase58());
-      liveWalletBalance = await getSolBalance(connection, wallet.publicKey);
+      configuredWalletPubkey = wallet.publicKey.toBase58();
+      configuredWalletMasked = maskPubkey(configuredWalletPubkey);
+      configuredWalletBalance = await getSolBalance(connection, wallet.publicKey);
     } catch (error) {
-      logger.warn("WEB_WALLET_READ_FAIL", "FAILED TO READ LIVE WALLET", {
+      logger.warn("WEB_WALLET_READ_FAIL", "FAILED TO READ CONFIGURED WALLET", {
         error: error instanceof Error ? error.message : String(error),
       });
     }
   }
 
+  const systemFallback = {
+    mode: config.MODE,
+    rpcOk: rpcFallback?.ok ?? false,
+    rpcSlot: rpcFallback?.slot ?? null,
+    rpcError: rpcFallback?.error ?? null,
+    walletPubkey: configuredWalletPubkey,
+    walletMasked: configuredWalletMasked,
+    walletBalanceSol: configuredWalletBalance,
+  };
+
   res.json({
     mode: config.MODE,
-    system: system?.value ?? {
-      mode: config.MODE,
-      rpcOk: rpcFallback?.ok ?? false,
-      rpcSlot: rpcFallback?.slot ?? null,
-      rpcError: rpcFallback?.error ?? null,
-      walletMasked: liveWalletMasked,
-      walletBalanceSol: liveWalletBalance,
+    system: {
+      ...systemFallback,
+      ...(system?.value ?? {}),
     },
     scanner: {
       ...(scanner?.value ?? {}),

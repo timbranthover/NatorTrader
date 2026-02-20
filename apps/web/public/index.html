@@ -13,67 +13,74 @@
         <a href="/legacy">LEGACY GREEN MODE</a>
       </nav>
 
-      <h1><span class="h1-glyph">█ █</span> SOLANA // BRANTSWAP TERMINAL <span class="h1-glyph">█ █</span></h1>
+      <h1><span class="h1-glyph">## ##</span> SOLANA // BRANTSWAP TERMINAL <span class="h1-glyph">## ##</span></h1>
 
-      <section class="block reveal">
-        <h2 class="block-title">OPERATIONS</h2>
-        <div class="controls">
-          <button class="btn-connect" id="btn-connect">REFRESH</button>
-          <button class="btn-swap" id="btn-swap">HALT ENTRIES</button>
-          <span class="mono-note">===== AUTO MODE ACTIVE / NO INPUT REQUIRED =====</span>
-        </div>
-      </section>
+      <div class="dashboard-grid">
+        <section class="block reveal grid-ops">
+          <h2 class="block-title">OPERATIONS</h2>
+          <div class="controls">
+            <button class="btn-connect" id="btn-connect">REFRESH</button>
+            <button class="btn-connect" id="btn-copy-wallet">COPY WALLET</button>
+            <button class="btn-swap" id="btn-swap">HALT ENTRIES</button>
+          </div>
+          <div class="mono-note">===== AUTO MODE ACTIVE / NO INPUT REQUIRED =====</div>
+        </section>
 
-      <section class="block reveal">
-        <h2 class="block-title">SYSTEM STATUS</h2>
-        <div class="stat-row"><span>MODE</span><span class="stat-val" id="mode-val">BOOTING</span></div>
-        <div class="stat-row"><span>RPC HEALTH</span><span class="stat-val" id="rpc-val">CHECKING</span></div>
-        <div class="stat-row"><span>WALLET</span><span class="stat-val" id="wallet-val">N/A</span></div>
-        <div class="stat-row"><span>SOL BALANCE</span><span class="stat-val" id="balance-val">0.0000</span></div>
-      </section>
+        <section class="block reveal grid-system">
+          <h2 class="block-title">SYSTEM STATUS</h2>
+          <div class="stat-row"><span>MODE</span><span class="stat-val" id="mode-val">BOOTING</span></div>
+          <div class="stat-row"><span>RPC HEALTH</span><span class="stat-val" id="rpc-val">CHECKING</span></div>
+          <div class="stat-row"><span>WALLET</span><span class="stat-val" id="wallet-val">N/A</span></div>
+          <div class="stat-row"><span>SOL BALANCE</span><span class="stat-val" id="balance-val">0.0000</span></div>
+          <div class="wallet-line">
+            <div class="wallet-label">WALLET ADDRESS</div>
+            <div class="wallet-full" id="wallet-full-val">N/A</div>
+          </div>
+        </section>
 
-      <section class="block reveal">
-        <h2 class="block-title">RISK LIMITS</h2>
-        <div class="stat-row"><span>KILL SWITCH</span><span class="stat-val" id="kill-val">OFF</span></div>
-        <div class="stat-row"><span>AT RISK / CAP</span><span class="stat-val" id="risk-val">0.0000 / 0.0000 SOL</span></div>
-        <div class="stat-row"><span>TRADES/HOUR</span><span class="stat-val" id="trades-val">0 / 0</span></div>
-        <div class="stat-row"><span>CIRCUIT BREAKER</span><span class="stat-val" id="circuit-val">CLOSED</span></div>
-      </section>
+        <section class="block reveal grid-risk">
+          <h2 class="block-title">RISK LIMITS</h2>
+          <div class="stat-row"><span>KILL SWITCH</span><span class="stat-val" id="kill-val">OFF</span></div>
+          <div class="stat-row"><span>AT RISK / CAP</span><span class="stat-val" id="risk-val">0.0000 / 0.0000 SOL</span></div>
+          <div class="stat-row"><span>TRADES/HOUR</span><span class="stat-val" id="trades-val">0 / 0</span></div>
+          <div class="stat-row"><span>CIRCUIT BREAKER</span><span class="stat-val" id="circuit-val">CLOSED</span></div>
+        </section>
 
-      <section class="block reveal">
-        <h2 class="block-title">SCANNER</h2>
-        <div class="stat-row"><span>LAST SCAN</span><span class="stat-val" id="scan-time-val">N/A</span></div>
-        <div class="stat-row"><span>POOLS SEEN</span><span class="stat-val" id="pools-val">0</span></div>
-        <div class="stat-row"><span>CANDIDATES</span><span class="stat-val" id="candidates-val">0</span></div>
-      </section>
+        <section class="block reveal grid-scanner">
+          <h2 class="block-title">SCANNER</h2>
+          <div class="stat-row"><span>LAST SCAN</span><span class="stat-val" id="scan-time-val">N/A</span></div>
+          <div class="stat-row"><span>POOLS SEEN</span><span class="stat-val" id="pools-val">0</span></div>
+          <div class="stat-row"><span>CANDIDATES</span><span class="stat-val" id="candidates-val">0</span></div>
+        </section>
 
-      <section class="block reveal">
-        <h2 class="block-title">PERFORMANCE</h2>
-        <div class="stat-row"><span>OPEN/CLOSED</span><span class="stat-val" id="perf-counts-val">0 / 0</span></div>
-        <div class="stat-row"><span>OPEN EXPOSURE</span><span class="stat-val" id="perf-entry-val">0.0000 SOL</span></div>
-        <div class="stat-row"><span>CURRENT VALUE</span><span class="stat-val" id="perf-current-val">0.0000 SOL</span></div>
-        <div class="stat-row"><span>UNREALIZED</span><span class="stat-val" id="perf-unreal-val">0.0000 SOL (0.00%)</span></div>
-        <div class="stat-row"><span>REALIZED</span><span class="stat-val" id="perf-realized-val">0.0000 SOL</span></div>
-        <div class="stat-row"><span>TOTAL</span><span class="stat-val" id="perf-total-val">0.0000 SOL (0.00%)</span></div>
-        <div class="stat-row"><span>WIN RATE</span><span class="stat-val" id="perf-winrate-val">0.00%</span></div>
-      </section>
+        <section class="block reveal grid-performance">
+          <h2 class="block-title">PERFORMANCE</h2>
+          <div class="stat-row"><span>OPEN/CLOSED</span><span class="stat-val" id="perf-counts-val">0 / 0</span></div>
+          <div class="stat-row"><span>OPEN EXPOSURE</span><span class="stat-val" id="perf-entry-val">0.0000 SOL</span></div>
+          <div class="stat-row"><span>CURRENT VALUE</span><span class="stat-val" id="perf-current-val">0.0000 SOL</span></div>
+          <div class="stat-row"><span>UNREALIZED</span><span class="stat-val" id="perf-unreal-val">0.0000 SOL (0.00%)</span></div>
+          <div class="stat-row"><span>REALIZED</span><span class="stat-val" id="perf-realized-val">0.0000 SOL</span></div>
+          <div class="stat-row"><span>TOTAL</span><span class="stat-val" id="perf-total-val">0.0000 SOL (0.00%)</span></div>
+          <div class="stat-row"><span>WIN RATE</span><span class="stat-val" id="perf-winrate-val">0.00%</span></div>
+        </section>
 
-      <section class="block reveal">
-        <h2 class="block-title">POSITIONS</h2>
-        <div id="positions-list" class="positions-empty">NO ACTIVE POSITIONS</div>
-      </section>
+        <section class="block reveal grid-positions">
+          <h2 class="block-title">POSITIONS</h2>
+          <div id="positions-list" class="positions-empty">NO ACTIVE POSITIONS</div>
+        </section>
 
-      <section class="block reveal">
-        <h2 class="block-title">ACTIVITY LOG</h2>
-        <div id="activity-log"></div>
-        <div class="mono-note">ACTIVITY&gt;<span class="blink">_</span></div>
-      </section>
+        <section class="block reveal grid-activity">
+          <h2 class="block-title">ACTIVITY LOG</h2>
+          <div id="activity-log"></div>
+          <div class="mono-note">ACTIVITY&gt;<span class="blink">_</span></div>
+        </section>
 
-      <section class="block reveal">
-        <h2 class="block-title">RAW LOG</h2>
-        <div id="log"></div>
-        <div class="mono-note">OPS&gt;<span class="blink">_</span></div>
-      </section>
+        <section class="block reveal grid-log">
+          <h2 class="block-title">RAW LOG</h2>
+          <div id="log"></div>
+          <div class="mono-note">OPS&gt;<span class="blink">_</span></div>
+        </section>
+      </div>
     </main>
     <script src="/app.js"></script>
   </body>

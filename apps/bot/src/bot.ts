@@ -8,6 +8,7 @@ import {
   loadConfig,
   maskPubkey,
   type BotConfig,
+  type ExitAction,
   type HardFilterResult,
   type PoolCandidate,
   type ScoreResult,
@@ -24,6 +25,7 @@ import {
   getMintAuthorityStatus,
   getMintDecimals,
   getSolBalance,
+  getTokenHolderCount,
   loadKeypairFromFile,
   simulateVersionedTransaction,
 } from "@autotrader/solana";
@@ -48,11 +50,19 @@ interface EvaluatedCandidate {
   quote: JupiterQuoteResponse | undefined;
 }
 
-interface ExitAction {
-  reason: "TP1" | "TP2" | "STOP_LOSS" | "TIME_STOP";
-  sellAmountRaw: string;
-  markTp1: boolean;
-  markTp2: boolean;
+function computeTradeSize(score: number, config: BotConfig): number {
+  if (!config.DYNAMIC_POSITION_SIZING) {
+    return config.TRADE_SIZE_SOL;
+  }
+  const range = config.TRADE_SIZE_SOL_MAX - config.TRADE_SIZE_SOL_MIN;
+  const ratio = score >= 90 ? 1.0 : score >= 80 ? 0.8 : score >= 70 ? 0.6 : 0.0;
+  return config.TRADE_SIZE_SOL_MIN + range * ratio;
+}
+
+function computeFractionRaw(quantityRaw: string, ratio: number): bigint {
+  const safeRatio = clamp(ratio, 0, 1);
+  const ratioBps = BigInt(Math.floor(safeRatio * 10_000));
+  return (BigInt(quantityRaw) * ratioBps) / 10_000n;
 }
 
 export class AutoTraderBot {
@@ -62,6 +72,7 @@ export class AutoTraderBot {
   private readonly jupiter: JupiterClient;
   private readonly circuitBreaker: CircuitBreaker;
   private readonly connection;
+  private readonly statusWallet: Keypair | null;
   private readonly wallet: Keypair | null;
   private running = false;
 
@@ -89,9 +100,21 @@ export class AutoTraderBot {
       this.config.FAILURE_CIRCUIT_BREAKER_N,
       this.config.CIRCUIT_BREAKER_COOLDOWN_MINUTES,
     );
-    this.wallet = this.config.MODE === "live" && this.config.WALLET_KEYPAIR_PATH
-      ? loadKeypairFromFile(this.config.WALLET_KEYPAIR_PATH)
-      : null;
+
+    let configuredWallet: Keypair | null = null;
+    if (this.config.WALLET_KEYPAIR_PATH) {
+      try {
+        configuredWallet = loadKeypairFromFile(this.config.WALLET_KEYPAIR_PATH);
+      } catch (error) {
+        this.logger.warn("WALLET_READ_FAIL", "FAILED TO READ WALLET KEYPAIR FILE", {
+          path: this.config.WALLET_KEYPAIR_PATH,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    this.statusWallet = configuredWallet;
+    this.wallet = this.config.MODE === "live" ? configuredWallet : null;
   }
 
   public async start(): Promise<void> {
@@ -100,7 +123,7 @@ export class AutoTraderBot {
       mode: this.config.MODE,
       pollSeconds: this.config.BOT_POLL_SECONDS,
       dbPath: this.config.DB_PATH,
-      wallet: this.wallet ? this.wallet.publicKey.toBase58() : "PAPER-NO-WALLET",
+      wallet: this.statusWallet ? this.statusWallet.publicKey.toBase58() : "N/A",
     });
 
     while (this.running) {
@@ -132,10 +155,11 @@ export class AutoTraderBot {
   private async tick(): Promise<void> {
     const killSwitchActive = existsSync(this.config.KILL_SWITCH_FILE_PATH);
     const rpcHealth = await checkRpcHealth(this.connection);
-    const walletMasked = this.wallet ? maskPubkey(this.wallet.publicKey.toBase58()) : "PAPER";
+    const walletPubkey = this.statusWallet ? this.statusWallet.publicKey.toBase58() : "N/A";
+    const walletMasked = this.statusWallet ? maskPubkey(walletPubkey) : "N/A";
     let walletBalanceSol = 0;
-    if (this.wallet) {
-      walletBalanceSol = await getSolBalance(this.connection, this.wallet.publicKey);
+    if (this.statusWallet) {
+      walletBalanceSol = await getSolBalance(this.connection, this.statusWallet.publicKey);
     }
 
     this.store.setRuntimeState("system_status", {
@@ -143,6 +167,7 @@ export class AutoTraderBot {
       rpcOk: rpcHealth.ok,
       rpcSlot: rpcHealth.slot ?? null,
       rpcError: rpcHealth.error ?? null,
+      walletPubkey,
       walletMasked,
       walletBalanceSol,
       heartbeatTs: new Date().toISOString(),
@@ -150,19 +175,39 @@ export class AutoTraderBot {
 
     const solPriceUsd = await this.getSolPriceUsd();
     const scannerCandidates = await fetchPoolCandidates(this.config.GECKO_TERMINAL_BASE_URL, solPriceUsd, this.logger);
-    const candidatesToEvaluate = scannerCandidates.slice(0, this.config.MAX_CANDIDATES_PER_SCAN);
-    if (scannerCandidates.length > candidatesToEvaluate.length) {
+    const fetchWindow = scannerCandidates.slice(0, this.config.MAX_SCAN_POOL_FETCH);
+    const unseenCandidates = fetchWindow.filter((candidate) => !this.store.hasSeenPool(candidate.poolId));
+    const preScored = unseenCandidates.map((candidate) => ({
+      candidate,
+      preScore: this.computePreScore(candidate),
+    }));
+    this.logger.debug("PRE_SCORE", "UNSEEN CANDIDATE PRE-SCORES", {
+      count: preScored.length,
+      top: preScored
+        .slice()
+        .sort((a, b) => b.preScore - a.preScore)
+        .slice(0, 20)
+        .map((item) => ({
+          poolId: item.candidate.poolId,
+          mint: item.candidate.tradeMint,
+          preScore: Number(item.preScore.toFixed(3)),
+        })),
+    });
+    const ranked = preScored.sort((a, b) => b.preScore - a.preScore).map((item) => item.candidate);
+    const candidatesToEvaluate = ranked.slice(0, this.config.MAX_CANDIDATES_PER_SCAN);
+    if (fetchWindow.length > candidatesToEvaluate.length) {
       this.logger.debug("SCAN_LIMIT", "CANDIDATE LIST TRUNCATED", {
         fetched: scannerCandidates.length,
+        fetchWindow: fetchWindow.length,
+        unseen: unseenCandidates.length,
         evaluating: candidatesToEvaluate.length,
       });
     }
     let evaluatedCount = 0;
-    let scannedNewPools = 0;
+    let scannedNewPools = unseenCandidates.length;
     let openedTradeThisTick = false;
 
     for (const candidate of candidatesToEvaluate) {
-      const seen = this.store.hasSeenPool(candidate.poolId);
       this.store.upsertSeenPool({
         poolId: candidate.poolId,
         baseMint: candidate.baseMint,
@@ -173,11 +218,6 @@ export class AutoTraderBot {
         reserveUsd: candidate.reserveUsd,
         raw: candidate.raw,
       });
-      if (seen) {
-        continue;
-      }
-
-      scannedNewPools += 1;
       const evaluated = await this.evaluateCandidate(candidate);
       evaluatedCount += 1;
       this.store.recordDecision({
@@ -195,6 +235,7 @@ export class AutoTraderBot {
         continue;
       }
 
+      const plannedTradeSizeSol = computeTradeSize(evaluated.decision.score.total, this.config);
       const risk = this.getRiskSnapshot(candidate.tradeMint, killSwitchActive);
       this.store.setRuntimeState("risk_status", risk);
       const riskDecision = canOpenNewPosition(this.config, {
@@ -203,10 +244,11 @@ export class AutoTraderBot {
         cooldownActive: risk.cooldownActive,
         killSwitchActive: risk.killSwitchActive,
         circuitOpen: risk.circuitOpen,
-      });
+      }, plannedTradeSizeSol);
       if (!riskDecision.allow) {
         this.logger.warn("RISK_BLOCK", "WARNING ENTRY BLOCKED BY RISK RULES", {
           mint: candidate.tradeMint,
+          plannedTradeSizeSol,
           reasons: riskDecision.reasons,
         });
         continue;
@@ -217,7 +259,7 @@ export class AutoTraderBot {
         continue;
       }
 
-      const opened = await this.openPosition(candidate, evaluated.quote);
+      const opened = await this.openPosition(candidate, evaluated.quote, evaluated.decision.score.total);
       if (opened) {
         openedTradeThisTick = true;
       }
@@ -236,6 +278,16 @@ export class AutoTraderBot {
 
     const riskState = this.getRiskSnapshot(undefined, killSwitchActive);
     this.store.setRuntimeState("risk_status", riskState);
+  }
+
+  private computePreScore(candidate: PoolCandidate): number {
+    const m5Total = candidate.txBuysM5 + candidate.txSellsM5;
+    const m15Total = candidate.txBuysM15 + candidate.txSellsM15;
+    const baselinePer5 = m15Total > 0 ? m15Total / 3 : 1;
+    const accel = baselinePer5 > 0 ? m5Total / baselinePer5 : 0;
+    const buyRatio = m5Total >= 5 ? candidate.txBuysM5 / m5Total : 0.5;
+    const priceSignal = candidate.priceChangeM5Pct > 5 ? 1 : 0;
+    return accel * 10 + buyRatio * 20 + priceSignal * 10;
   }
 
   private getRiskSnapshot(targetMint?: string, killSwitchOverride?: boolean): {
@@ -336,27 +388,54 @@ export class AutoTraderBot {
       filters.reasons.push("LIQUIDITY_BELOW_MIN");
     }
 
+    const effectiveMc = candidate.marketCapUsd > 0 ? candidate.marketCapUsd : candidate.fdvUsd;
+    if (effectiveMc > 0 && effectiveMc < this.config.MIN_MC_USD) {
+      filters.reasons.push("MC_TOO_LOW");
+    }
+    if (effectiveMc > 0 && effectiveMc > this.config.MAX_MC_USD) {
+      filters.reasons.push("MC_TOO_HIGH");
+    }
+    if (effectiveMc === 0) {
+      this.logger.warn("MC_UNAVAILABLE", "MC_UNAVAILABLE - PROCEEDING WITHOUT MC FILTER", {
+        poolId: candidate.poolId,
+        mint: candidate.tradeMint,
+      });
+    }
+
+    if (candidate.volumeM5Usd < this.config.MIN_VOLUME_M5_USD) {
+      filters.reasons.push("VOLUME_M5_TOO_LOW");
+    }
+
+    const m5Total = candidate.txBuysM5 + candidate.txSellsM5;
+    const m5BuyRatio = m5Total >= 10 ? candidate.txBuysM5 / m5Total : 0.5;
+    if (m5Total >= 10 && m5BuyRatio < 0.5) {
+      filters.reasons.push("SELL_DOMINATED_M5");
+    }
+
+    const cheapFiltersPassed = filters.reasons.length === 0;
     const tradeAmountLamports = String(Math.floor(this.config.TRADE_SIZE_SOL * 1_000_000_000));
     const quotes: JupiterQuoteResponse[] = [];
-    for (let i = 0; i < 3; i += 1) {
-      try {
-        const quote = await this.jupiter.getQuoteWithRetries({
-          inputMint: WSOL_MINT,
-          outputMint: candidate.tradeMint,
-          amount: tradeAmountLamports,
-          slippageBps: this.config.SLIPPAGE_BPS,
-        });
-        quotes.push(quote);
-      } catch (error) {
-        filters.reasons.push("NO_BUY_ROUTE");
-        this.logger.warn("FILTER_NO_BUY_ROUTE", "WARNING CANDIDATE FAILED BUY ROUTE", {
-          mint: candidate.tradeMint,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        break;
-      }
-      if (i < 2) {
-        await sleep(650);
+    if (cheapFiltersPassed) {
+      for (let i = 0; i < 3; i += 1) {
+        try {
+          const quote = await this.jupiter.getQuoteWithRetries({
+            inputMint: WSOL_MINT,
+            outputMint: candidate.tradeMint,
+            amount: tradeAmountLamports,
+            slippageBps: this.config.SLIPPAGE_BPS,
+          });
+          quotes.push(quote);
+        } catch (error) {
+          filters.reasons.push("NO_BUY_ROUTE");
+          this.logger.warn("FILTER_NO_BUY_ROUTE", "WARNING CANDIDATE FAILED BUY ROUTE", {
+            mint: candidate.tradeMint,
+            error: error instanceof Error ? error.message : String(error),
+          });
+          break;
+        }
+        if (i < 2) {
+          await sleep(650);
+        }
       }
     }
 
@@ -400,6 +479,18 @@ export class AutoTraderBot {
           mint: candidate.tradeMint,
           error: error instanceof Error ? error.message : String(error),
         });
+      }
+    }
+
+    if (cheapFiltersPassed && this.config.HELIUS_API_KEY && this.config.MIN_HOLDER_COUNT > 0) {
+      const holderCount = await getTokenHolderCount(this.config.HELIUS_API_KEY, candidate.tradeMint);
+      if (holderCount === null) {
+        this.logger.warn("HELIUS_TIMEOUT", "HELIUS_TIMEOUT - SKIPPING HOLDER CHECK", {
+          poolId: candidate.poolId,
+          mint: candidate.tradeMint,
+        });
+      } else if (holderCount < this.config.MIN_HOLDER_COUNT) {
+        filters.reasons.push("HOLDER_COUNT_TOO_LOW");
       }
     }
 
@@ -447,6 +538,7 @@ export class AutoTraderBot {
     this.logger.info("DECISION", "SCANNER DECISION", {
       mint: candidate.tradeMint,
       score: score.total,
+      virality: score.viralityDetail,
       reasons: filters.reasons,
       warnings: filters.warnings,
     });
@@ -461,40 +553,81 @@ export class AutoTraderBot {
     ageMinutes: number,
   ): ScoreResult {
     const freshness = clamp(
-      30 - (ageMinutes / this.config.FRESH_POOL_WINDOW_MINUTES) * 30,
+      25 - (ageMinutes / this.config.FRESH_POOL_WINDOW_MINUTES) * 25,
       0,
-      30,
+      25,
     );
 
-    const m5Tx = candidate.txBuysM5 + candidate.txSellsM5;
-    const m15Tx = candidate.txBuysM15 + candidate.txSellsM15;
-    const baselinePer5 = m15Tx > 0 ? m15Tx / 3 : 1;
-    const accel = baselinePer5 > 0 ? m5Tx / baselinePer5 : 0;
-    const flow = clamp(accel * 18 + clamp(candidate.volumeM5Usd / 1500, 0, 1) * 17, 0, 35);
+    const m5Total = candidate.txBuysM5 + candidate.txSellsM5;
+    const m15Total = candidate.txBuysM15 + candidate.txSellsM15;
+    const m30Total = candidate.txBuysM30 + candidate.txSellsM30;
+    const baselinePer5 = m30Total > 0
+      ? m30Total / 6
+      : (m15Total > 0 ? m15Total / 3 : 1);
+    const accel = baselinePer5 > 0 ? m5Total / baselinePer5 : 0;
+    const accelScore = clamp((accel - 1) * 4, 0, 12);
+
+    const buyRatio = m5Total >= 5 ? candidate.txBuysM5 / m5Total : 0.5;
+    const buyRatioScore = clamp(((buyRatio - 0.5) / 0.35) * 10, 0, 10);
+
+    const h1BaselinePer5 = candidate.volumeH1Usd > 0 ? candidate.volumeH1Usd / 12 : 0;
+    const volAccel = h1BaselinePer5 > 100
+      ? candidate.volumeM5Usd / h1BaselinePer5
+      : (candidate.volumeM5Usd > 1000 ? 2.0 : 0);
+    const volAccelScore = clamp((volAccel - 1) * 5, 0, 10);
+
+    const momentumScore = candidate.priceChangeM5Pct > 0
+      ? clamp((candidate.priceChangeM5Pct / 15) * 8, 0, 8)
+      : 0;
+
+    const virality = clamp(accelScore + buyRatioScore + volAccelScore + momentumScore, 0, 40);
 
     let route = 0;
     if (quote) {
       const hops = quote.routePlan.length;
-      const hopScore = hops <= 1 ? 18 : hops === 2 ? 14 : 10;
+      const hopScore = hops <= 1 ? 13 : hops === 2 ? 9 : 5;
       const impact = toNumber(quote.priceImpactPct);
-      const impactScore = clamp(17 - impact * 2.5, 0, 17);
-      route = clamp(hopScore + impactScore, 0, 35);
+      const impactScore = clamp(12 - impact * 2, 0, 12);
+      route = clamp(hopScore + impactScore, 0, 25);
     }
 
     let penalties = 0;
     if (filters.authority?.hasAnyAuthority) {
       penalties += this.config.AUTHORITY_POLICY === "strict" ? 30 : 12;
     }
-    if (filters.quoteStabilityPct && filters.quoteStabilityPct > this.config.QUOTE_STABILITY_PCT_CAP) {
+    if (
+      filters.quoteStabilityPct !== undefined
+      && filters.quoteStabilityPct > this.config.QUOTE_STABILITY_PCT_CAP
+    ) {
       penalties += 12;
     }
+    if (m5Total >= 10 && buyRatio < 0.4) {
+      penalties += 8;
+    }
 
-    const total = clamp(freshness + flow + route - penalties, 0, 100);
-    return { total, freshness, flow, route, penalties };
+    const total = clamp(freshness + virality + route - penalties, 0, 100);
+    return {
+      total,
+      freshness,
+      flow: virality,
+      route,
+      penalties,
+      viralityDetail: {
+        accelScore,
+        buyRatioScore,
+        volAccelScore,
+        momentumScore,
+      },
+    };
   }
 
-  private async openPosition(candidate: PoolCandidate, quote: JupiterQuoteResponse): Promise<boolean> {
-    const inAmountRaw = String(Math.floor(this.config.TRADE_SIZE_SOL * 1_000_000_000));
+  private async openPosition(
+    candidate: PoolCandidate,
+    quote: JupiterQuoteResponse,
+    score: number,
+  ): Promise<boolean> {
+    const tradeSizeSol = computeTradeSize(score, this.config);
+    const inAmountRaw = String(Math.floor(tradeSizeSol * 1_000_000_000));
     try {
       const execution = await this.executeSwap({
         inputMint: WSOL_MINT,
@@ -509,11 +642,11 @@ export class AutoTraderBot {
       if (tokenAmountUi <= 0) {
         throw new Error("Bought token amount is zero");
       }
-      const entryPriceSol = this.config.TRADE_SIZE_SOL / tokenAmountUi;
+      const entryPriceSol = tradeSizeSol / tokenAmountUi;
       const positionId = this.store.openPosition({
         tokenMint: candidate.tradeMint,
         entryPriceSol,
-        entryNotionalSol: this.config.TRADE_SIZE_SOL,
+        entryNotionalSol: tradeSizeSol,
         quantityRaw: execution.outAmountRaw,
         quantityRemainingRaw: execution.outAmountRaw,
         decimals,
@@ -527,8 +660,12 @@ export class AutoTraderBot {
           routeSummary: execution.routeSummary,
           openedBy: "AUTO_ENTRY",
           openedTs: new Date().toISOString(),
+          entryScore: score,
+          plannedTradeSizeSol: tradeSizeSol,
           realizedReturnedSol: 0,
           realizedPnlSol: 0,
+          tp3Hit: false,
+          highWaterPriceSol: entryPriceSol,
         },
       });
 
@@ -576,6 +713,8 @@ export class AutoTraderBot {
         mint: candidate.tradeMint,
         positionId,
         qtyRaw: execution.outAmountRaw,
+        tradeSizeSol,
+        score,
         mode: this.config.MODE,
       });
       return true;
@@ -604,6 +743,7 @@ export class AutoTraderBot {
   private determineExitAction(position: {
     tp1Hit: boolean;
     tp2Hit: boolean;
+    tp3Hit: boolean;
     quantityRaw: string;
     quantityRemainingRaw: string;
     takeProfit1Pct: number;
@@ -617,23 +757,61 @@ export class AutoTraderBot {
     }
 
     if (!position.tp1Hit && pnlPct >= position.takeProfit1Pct) {
-      let sell = BigInt(position.quantityRaw) / 2n;
+      let sell = computeFractionRaw(position.quantityRaw, this.config.TP1_SELL_RATIO);
       if (sell <= 0n || sell > remaining) {
         sell = remaining;
       }
-      return { reason: "TP1", sellAmountRaw: sell.toString(), markTp1: true, markTp2: false };
+      return {
+        reason: "TP1",
+        sellAmountRaw: sell.toString(),
+        markTp1: true,
+        markTp2: false,
+        markTp3: false,
+      };
     }
 
     if (position.tp1Hit && !position.tp2Hit && pnlPct >= position.takeProfit2Pct) {
-      return { reason: "TP2", sellAmountRaw: remaining.toString(), markTp1: true, markTp2: true };
+      let sell = computeFractionRaw(position.quantityRaw, this.config.TP1_SELL_RATIO);
+      if (sell <= 0n || sell > remaining) {
+        sell = remaining;
+      }
+      return {
+        reason: "TP2",
+        sellAmountRaw: sell.toString(),
+        markTp1: true,
+        markTp2: true,
+        markTp3: false,
+      };
+    }
+
+    if (position.tp2Hit && !position.tp3Hit && pnlPct >= this.config.TP3_PCT) {
+      return {
+        reason: "TP3",
+        sellAmountRaw: remaining.toString(),
+        markTp1: true,
+        markTp2: true,
+        markTp3: true,
+      };
     }
 
     if (pnlPct <= -position.stopLossPct) {
-      return { reason: "STOP_LOSS", sellAmountRaw: remaining.toString(), markTp1: position.tp1Hit, markTp2: position.tp2Hit };
+      return {
+        reason: "STOP_LOSS",
+        sellAmountRaw: remaining.toString(),
+        markTp1: position.tp1Hit,
+        markTp2: position.tp2Hit,
+        markTp3: position.tp3Hit,
+      };
     }
 
     if (elapsedMinutes >= position.timeStopMinutes) {
-      return { reason: "TIME_STOP", sellAmountRaw: remaining.toString(), markTp1: position.tp1Hit, markTp2: position.tp2Hit };
+      return {
+        reason: "TIME_STOP",
+        sellAmountRaw: remaining.toString(),
+        markTp1: position.tp1Hit,
+        markTp2: position.tp2Hit,
+        markTp3: position.tp3Hit,
+      };
     }
 
     return null;
@@ -665,17 +843,49 @@ export class AutoTraderBot {
         const entryRemainingSol = position.entryNotionalSol * ratio;
         const pnlPct = entryRemainingSol > 0 ? ((currentValueSol - entryRemainingSol) / entryRemainingSol) * 100 : 0;
         const elapsedMinutes = (Date.now() - new Date(position.openedTs).getTime()) / 60_000;
+        const quantityRemainingUi = toNumber(position.quantityRemainingRaw) / 10 ** position.decimals;
+        const currentPriceSol = quantityRemainingUi > 0 ? currentValueSol / quantityRemainingUi : 0;
+        const tp3Hit = Boolean(position.metadata["tp3Hit"] ?? false);
+
+        let highWaterPriceSol = Number(position.metadata["highWaterPriceSol"] ?? position.entryPriceSol);
+        let trailingStopArmed = false;
+        let dropFromHwmPct = 0;
+        if (position.tp1Hit && !position.tp2Hit) {
+          highWaterPriceSol = Math.max(highWaterPriceSol, currentPriceSol);
+          dropFromHwmPct = highWaterPriceSol > 0
+            ? ((highWaterPriceSol - currentPriceSol) / highWaterPriceSol) * 100
+            : 0;
+          trailingStopArmed = this.config.TRAILING_STOP_PCT > 0 && dropFromHwmPct >= this.config.TRAILING_STOP_PCT;
+        }
 
         const nextMetadata = {
           ...position.metadata,
           currentValueSol,
+          currentPriceSol,
           pnlPct,
           elapsedMinutes,
+          tp3Hit,
+          highWaterPriceSol,
+          dropFromHwmPct,
           lastQuoteTs: new Date().toISOString(),
         };
         this.store.updatePosition(position.id, { metadata: nextMetadata });
 
-        const action = this.determineExitAction(position, pnlPct, elapsedMinutes);
+        let action: ExitAction | null = null;
+        if (trailingStopArmed) {
+          action = {
+            reason: "TRAILING_STOP",
+            sellAmountRaw: position.quantityRemainingRaw,
+            markTp1: position.tp1Hit,
+            markTp2: position.tp2Hit,
+            markTp3: tp3Hit,
+          };
+        } else {
+          action = this.determineExitAction({
+            ...position,
+            tp3Hit,
+          }, pnlPct, elapsedMinutes);
+        }
         if (!action) {
           continue;
         }
@@ -722,8 +932,10 @@ export class AutoTraderBot {
         const realizedPnlSolPrev = Number(position.metadata["realizedPnlSol"] ?? 0);
 
         const newRemaining = (BigInt(position.quantityRemainingRaw) - BigInt(action.sellAmountRaw)).toString();
+        const nextTp3Hit = action.markTp3 || tp3Hit;
         const mergedMetadata = {
           ...nextMetadata,
+          tp3Hit: nextTp3Hit,
           lastExitReason: action.reason,
           lastExitTs: new Date().toISOString(),
           realizedReturnedSol: realizedReturnedSolPrev + returnedSol,
