@@ -2,14 +2,14 @@
   const logEl = document.getElementById("log");
   const activityLogEl = document.getElementById("activity-log");
   const btnConnect = document.getElementById("btn-connect");
-  const btnCopyWallet = document.getElementById("btn-copy-wallet");
+  const btnCopyWalletMini = document.getElementById("btn-copy-wallet-mini");
   const btnSwap = document.getElementById("btn-swap");
 
   const statusNodes = {
     mode: document.getElementById("mode-val"),
     rpc: document.getElementById("rpc-val"),
     wallet: document.getElementById("wallet-val"),
-    walletFull: document.getElementById("wallet-full-val"),
+    walletHead: document.getElementById("wallet-head-val"),
     balance: document.getElementById("balance-val"),
     kill: document.getElementById("kill-val"),
     risk: document.getElementById("risk-val"),
@@ -110,13 +110,13 @@
     statusNodes.wallet.textContent = walletMasked;
     statusNodes.wallet.className = "stat-val hi";
 
-    if (statusNodes.walletFull) {
-      statusNodes.walletFull.textContent = walletPubkey;
-      statusNodes.walletFull.className = walletPubkey !== "N/A" ? "wallet-full hi" : "wallet-full dim";
+    if (statusNodes.walletHead) {
+      statusNodes.walletHead.textContent = walletPubkey;
+      statusNodes.walletHead.className = walletPubkey !== "N/A" ? "wallet-head-val hi" : "wallet-head-val dim";
     }
 
-    if (btnCopyWallet) {
-      btnCopyWallet.disabled = walletPubkey === "N/A";
+    if (btnCopyWalletMini) {
+      btnCopyWalletMini.disabled = walletPubkey === "N/A";
     }
 
     statusNodes.balance.textContent = `${fmtNumber(system.walletBalanceSol, 4)} SOL`;
@@ -420,21 +420,21 @@
     }
   });
 
-  btnCopyWallet?.addEventListener("click", async () => {
+  btnCopyWalletMini?.addEventListener("click", async () => {
     const value = walletPubkeyCached;
     if (!value || value === "N/A") {
       appendLog("WARNING: WALLET ADDRESS UNAVAILABLE", "warn");
       return;
     }
 
-    btnCopyWallet.classList.add("pulse");
+    btnCopyWalletMini.classList.add("pulse");
     try {
       await navigator.clipboard.writeText(value);
       appendLog(`CONFIRMED: WALLET COPIED ${value}`, "ok");
     } catch (error) {
       appendLog(`ERROR: WALLET COPY FAILED ${String(error)}`, "err");
     } finally {
-      btnCopyWallet.classList.remove("pulse");
+      btnCopyWalletMini.classList.remove("pulse");
     }
   });
 

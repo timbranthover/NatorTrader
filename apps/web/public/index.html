@@ -18,9 +18,13 @@
       <div class="dashboard-grid">
         <section class="block reveal grid-ops">
           <h2 class="block-title">OPERATIONS</h2>
+          <div class="wallet-head">
+            <span class="wallet-head-label">HOT WALLET</span>
+            <span class="wallet-head-val hi" id="wallet-head-val">N/A</span>
+            <button class="btn-copy-mini" id="btn-copy-wallet-mini" title="COPY WALLET">COPY</button>
+          </div>
           <div class="controls">
             <button class="btn-connect" id="btn-connect">REFRESH</button>
-            <button class="btn-connect" id="btn-copy-wallet">COPY WALLET</button>
             <button class="btn-swap" id="btn-swap">HALT ENTRIES</button>
           </div>
           <div class="mono-note">===== AUTO MODE ACTIVE / NO INPUT REQUIRED =====</div>
@@ -32,10 +36,6 @@
           <div class="stat-row"><span>RPC HEALTH</span><span class="stat-val" id="rpc-val">CHECKING</span></div>
           <div class="stat-row"><span>WALLET</span><span class="stat-val" id="wallet-val">N/A</span></div>
           <div class="stat-row"><span>SOL BALANCE</span><span class="stat-val" id="balance-val">0.0000</span></div>
-          <div class="wallet-line">
-            <div class="wallet-label">WALLET ADDRESS</div>
-            <div class="wallet-full" id="wallet-full-val">N/A</div>
-          </div>
         </section>
 
         <section class="block reveal grid-risk">

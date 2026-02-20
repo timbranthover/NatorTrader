@@ -56,12 +56,12 @@ main {
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1.05fr 1fr 1.35fr;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-template-areas:
-    "ops ops ops"
-    "system risk scanner"
-    "performance performance positions"
-    "activity log log";
+    "ops ops ops ops"
+    "system risk scanner scanner"
+    "performance performance positions positions"
+    "activity activity log log";
   gap: 12px;
   grid-auto-flow: dense;
   align-items: start;
@@ -262,8 +262,49 @@ button:disabled {
   gap: 8px;
 }
 
+.wallet-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding: 7px 9px;
+  border: 1px dashed rgba(122, 82, 0, 0.5);
+  background: rgba(6, 4, 0, 0.5);
+}
+
+.wallet-head-label {
+  color: var(--dim);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 12px;
+}
+
+.wallet-head-val {
+  color: var(--hi);
+  letter-spacing: 1px;
+  font-size: 12px;
+  word-break: break-all;
+  flex: 1;
+  min-width: 0;
+}
+
+.btn-copy-mini {
+  margin: 0;
+  padding: 2px 6px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-copy-mini:hover,
+.btn-copy-mini:focus-visible {
+  background: var(--accent);
+  color: #130800;
+}
+
 #log {
-  height: 410px;
+  height: 360px;
   overflow-y: auto;
   border: 1px solid var(--border);
   background: linear-gradient(180deg, rgba(255, 176, 0, 0.03), var(--log) 24%);
@@ -275,7 +316,7 @@ button:disabled {
 }
 
 #activity-log {
-  height: 240px;
+  height: 360px;
   overflow-y: auto;
   border: 1px solid var(--border);
   background: linear-gradient(180deg, rgba(255, 176, 0, 0.03), var(--log) 24%);
@@ -303,13 +344,15 @@ button:disabled {
 }
 
 #log,
-#activity-log {
+#activity-log,
+#positions-list {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
 
 #log::-webkit-scrollbar,
-#activity-log::-webkit-scrollbar {
+#activity-log::-webkit-scrollbar,
+#positions-list::-webkit-scrollbar {
   width: 0;
   height: 0;
   display: none;
@@ -362,6 +405,12 @@ button:disabled {
 .positions-empty {
   color: var(--dim);
   text-transform: uppercase;
+}
+
+#positions-list {
+  height: 248px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .position-row {
@@ -419,48 +468,23 @@ button:disabled {
   color: var(--text);
 }
 
-.wallet-line {
-  margin-top: 10px;
-  border-top: 1px dashed rgba(122, 82, 0, 0.32);
-  padding-top: 8px;
-}
-
-.wallet-label {
-  color: var(--dim);
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  font-size: 12px;
-}
-
-.wallet-full {
-  margin-top: 4px;
-  color: var(--hi);
-  font-size: 12px;
-  letter-spacing: 1px;
-  word-break: break-all;
-  user-select: text;
-  padding: 6px 8px;
-  border: 1px dashed rgba(122, 82, 0, 0.5);
-  background: rgba(6, 4, 0, 0.5);
-}
-
 .grid-ops {
   grid-area: ops;
 }
 
 .grid-system {
   grid-area: system;
-  min-height: 232px;
+  min-height: 198px;
 }
 
 .grid-risk {
   grid-area: risk;
-  min-height: 232px;
+  min-height: 198px;
 }
 
 .grid-scanner {
   grid-area: scanner;
-  min-height: 232px;
+  min-height: 198px;
 }
 
 .grid-performance {
@@ -475,12 +499,12 @@ button:disabled {
 
 .grid-activity {
   grid-area: activity;
-  min-height: 326px;
+  min-height: 448px;
 }
 
 .grid-log {
   grid-area: log;
-  min-height: 500px;
+  min-height: 448px;
 }
 
 body.theme-legacy {
@@ -559,7 +583,7 @@ body.theme-legacy {
   }
 
   #activity-log {
-    height: 180px;
+    height: 320px;
   }
 
   .grid-system,
