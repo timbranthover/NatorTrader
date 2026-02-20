@@ -1,9 +1,21 @@
+import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
 import { z } from "zod";
 import type { BotConfig } from "./types.js";
 
-dotenv.config();
+const workspaceBaseDir = process.env.APP_ROOT ?? process.env.INIT_CWD ?? process.cwd();
+const envCandidates = [
+  path.resolve(workspaceBaseDir, ".env"),
+  path.resolve(process.cwd(), ".env"),
+];
+
+for (const envPath of envCandidates) {
+  if (fs.existsSync(envPath)) {
+    dotenv.config({ path: envPath });
+    break;
+  }
+}
 
 const num = (defaultValue: number) =>
   z
