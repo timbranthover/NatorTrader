@@ -7,6 +7,7 @@
   "types": "src/index.ts",
   "scripts": {
     "dev": "tsx src/index.ts",
+    "wallet:new": "node scripts/create-wallet.cjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

@@ -69,6 +69,10 @@ Prerequisites:
 7. Open dashboard:
    - `http://localhost:8787`
 
+Wallet generation helper (recommended):
+- `pnpm wallet:new`
+- output file defaults to `./keys/hot-wallet.json`
+
 ### Paper-mode demo command
 
 `pnpm dev`
@@ -81,7 +85,7 @@ You should see:
 ## Live Mode Steps (use tiny funds only)
 
 1. Create a dedicated hot wallet JSON keypair file:
-   - `solana-keygen new --no-bip39-passphrase --outfile ./keys/hot-wallet.json`
+   - `pnpm wallet:new`
 2. Fund only a few dollars of SOL to that wallet.
 3. Set:
    - `MODE=live`
@@ -165,6 +169,14 @@ Reset DB:
 - `GET /api/logs`
 - `GET /events/logs` (SSE)
 - `GET /legacy`
+
+## Fast Launch Options
+
+- Full app (paper): `pnpm dev`
+- Full app (live): `pnpm live`
+- Bot only (paper): `pnpm bot:paper`
+- Bot only (live): `pnpm bot:live`
+- Web only: `pnpm web`
 
 ## Explicit Assumptions (No Silent Guessing)
 

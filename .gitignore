@@ -7,4 +7,6 @@ dist
 *.db
 *.db-shm
 *.db-wal
+keys/
+KILL_SWITCH
 logs

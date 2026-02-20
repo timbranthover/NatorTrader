@@ -7,8 +7,12 @@
     "node": ">=20"
   },
   "scripts": {
+    "wallet:new": "corepack pnpm --filter @autotrader/bot wallet:new",
     "dev": "cross-env MODE=paper concurrently -k -n BOT,WEB -c yellow,cyan \"corepack pnpm --filter @autotrader/bot dev\" \"corepack pnpm --filter @autotrader/web dev\"",
     "live": "cross-env MODE=live concurrently -k -n BOT,WEB -c yellow,cyan \"corepack pnpm --filter @autotrader/bot dev\" \"corepack pnpm --filter @autotrader/web dev\"",
+    "bot:paper": "cross-env MODE=paper corepack pnpm --filter @autotrader/bot dev",
+    "bot:live": "cross-env MODE=live corepack pnpm --filter @autotrader/bot dev",
+    "web": "corepack pnpm --filter @autotrader/web dev",
     "db:reset": "corepack pnpm --filter @autotrader/store db:reset",
     "typecheck": "corepack pnpm -r typecheck"
   },
