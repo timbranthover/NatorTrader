@@ -78,6 +78,8 @@ export class AutoTraderBot {
 
   private solPriceCacheUsd = 0;
   private solPriceCacheExpiresAt = 0;
+  private scannerBackoffMs = 0;
+  private scannerBackoffUntil = 0;
 
   public constructor() {
     this.config = loadConfig();
@@ -173,8 +175,59 @@ export class AutoTraderBot {
       heartbeatTs: new Date().toISOString(),
     });
 
+    const nowMs = Date.now();
+    if (nowMs < this.scannerBackoffUntil) {
+      const waitSec = Math.ceil((this.scannerBackoffUntil - nowMs) / 1000);
+      this.logger.warn("SCANNER_BACKOFF", "WARNING SCANNER BACKOFF ACTIVE", {
+        waitSec,
+        backoffMs: this.scannerBackoffMs,
+      });
+      await this.monitorPositions();
+      this.store.setRuntimeState("scanner_status", {
+        lastScanTime: new Date().toISOString(),
+        poolsSeenCount: this.store.getScannerStats().poolsSeenCount,
+        candidatesCount: this.store.getScannerStats().candidatesCount,
+        evaluatedThisScan: 0,
+        newPoolsThisScan: 0,
+        backoffActive: true,
+        backoffUntilTs: new Date(this.scannerBackoffUntil).toISOString(),
+      });
+      return;
+    }
+
     const solPriceUsd = await this.getSolPriceUsd();
-    const scannerCandidates = await fetchPoolCandidates(this.config.GECKO_TERMINAL_BASE_URL, solPriceUsd, this.logger);
+    let scannerCandidates: PoolCandidate[] = [];
+    try {
+      scannerCandidates = await fetchPoolCandidates(this.config.GECKO_TERMINAL_BASE_URL, solPriceUsd, this.logger);
+      this.scannerBackoffMs = 0;
+      this.scannerBackoffUntil = 0;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (this.isScannerRateLimited(message)) {
+        const base = this.scannerBackoffMs > 0 ? this.scannerBackoffMs * 2 : 20_000;
+        this.scannerBackoffMs = Math.min(base, 5 * 60_000);
+        this.scannerBackoffUntil = Date.now() + this.scannerBackoffMs;
+        this.logger.warn("SCANNER_RATE_LIMIT", "WARNING SCANNER RATE LIMITED - BACKING OFF", {
+          backoffMs: this.scannerBackoffMs,
+          backoffUntilTs: new Date(this.scannerBackoffUntil).toISOString(),
+          error: message,
+        });
+
+        await this.monitorPositions();
+        this.store.setRuntimeState("scanner_status", {
+          lastScanTime: new Date().toISOString(),
+          poolsSeenCount: this.store.getScannerStats().poolsSeenCount,
+          candidatesCount: this.store.getScannerStats().candidatesCount,
+          evaluatedThisScan: 0,
+          newPoolsThisScan: 0,
+          backoffActive: true,
+          backoffUntilTs: new Date(this.scannerBackoffUntil).toISOString(),
+          lastError: message,
+        });
+        return;
+      }
+      throw error;
+    }
     const fetchWindow = scannerCandidates.slice(0, this.config.MAX_SCAN_POOL_FETCH);
     const unseenCandidates = fetchWindow.filter((candidate) => !this.store.hasSeenPool(candidate.poolId));
     const preScored = unseenCandidates.map((candidate) => ({
@@ -274,6 +327,8 @@ export class AutoTraderBot {
       candidatesCount: scannerStats.candidatesCount,
       evaluatedThisScan: evaluatedCount,
       newPoolsThisScan: scannedNewPools,
+      backoffActive: false,
+      backoffUntilTs: null,
     });
 
     const riskState = this.getRiskSnapshot(undefined, killSwitchActive);
@@ -535,13 +590,20 @@ export class AutoTraderBot {
       reasonSummary: filters.reasons.length > 0 ? filters.reasons.join(",") : "PASS",
     };
 
-    this.logger.info("DECISION", "SCANNER DECISION", {
+    const decisionData = {
       mint: candidate.tradeMint,
       score: score.total,
       virality: score.viralityDetail,
       reasons: filters.reasons,
       warnings: filters.warnings,
-    });
+    };
+    if (filters.reasons.length === 0) {
+      this.logger.info("DECISION", "SCANNER DECISION", decisionData);
+    } else if (filters.reasons.includes("NO_BUY_ROUTE") || filters.reasons.includes("NO_SELL_ROUTE")) {
+      this.logger.warn("DECISION", "SCANNER DECISION", decisionData);
+    } else {
+      this.logger.debug("DECISION", "SCANNER DECISION", decisionData);
+    }
 
     return { decision, quote: finalQuote };
   }
@@ -1145,5 +1207,10 @@ export class AutoTraderBot {
       lower.includes("expired") ||
       lower.includes("too many requests")
     );
+  }
+
+  private isScannerRateLimited(message: string): boolean {
+    const lower = message.toLowerCase();
+    return lower.includes("(429)") || lower.includes("rate limit") || lower.includes("error_code\":429");
   }
 }

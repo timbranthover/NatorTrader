@@ -177,6 +177,7 @@ Reset DB:
 ## API Endpoints
 
 - `GET /api/status`
+- `GET /api/dashboard`
 - `GET /api/performance`
 - `GET /api/activity`
 - `GET /api/config`
@@ -188,6 +189,8 @@ Reset DB:
 
 ## Fast Launch Options
 
+- Help/reminder menu: `pnpm howto`
+- Start alias (paper full app): `pnpm start`
 - Full app (paper): `pnpm dev`
 - Full app (live): `pnpm live`
 - Bot only (paper): `pnpm bot:paper`

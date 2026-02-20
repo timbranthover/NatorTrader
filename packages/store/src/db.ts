@@ -70,6 +70,7 @@ export interface PerformanceSnapshot {
   openPositions: number;
   closedPositions: number;
   openEntryExposureSol: number;
+  totalBasisSol: number;
   openCurrentValueSol: number;
   unrealizedPnlSol: number;
   unrealizedPnlPct: number;
@@ -567,7 +568,9 @@ export class Store {
       .prepare(
         `SELECT COUNT(*) AS count
          FROM trades
-         WHERE ts >= ? AND status IN ('CONFIRMED', 'PAPER_FILLED', 'PAPER_EXIT')`,
+         WHERE ts >= ?
+           AND side = 'BUY'
+           AND status IN ('CONFIRMED', 'PAPER_FILLED')`,
       )
       .get(since) as { count: number };
     return row.count;
@@ -616,6 +619,7 @@ export class Store {
     let openPositions = 0;
     let closedPositions = 0;
     let openEntryExposureSol = 0;
+    let closedEntryBasisSol = 0;
     let openCurrentValueSol = 0;
     let realizedPnlSol = 0;
     let winningClosedPositions = 0;
@@ -636,6 +640,7 @@ export class Store {
         openCurrentValueSol += currentValueSol;
       } else if (row.status === "CLOSED") {
         closedPositions += 1;
+        closedEntryBasisSol += row.entry_notional_sol;
         if (positionRealizedPnlSol > 0) {
           winningClosedPositions += 1;
         } else if (positionRealizedPnlSol < 0) {
@@ -649,7 +654,7 @@ export class Store {
     const unrealizedPnlSol = openCurrentValueSol - openEntryExposureSol;
     const unrealizedPnlPct = openEntryExposureSol > 0 ? (unrealizedPnlSol / openEntryExposureSol) * 100 : 0;
     const totalPnlSol = realizedPnlSol + unrealizedPnlSol;
-    const totalBasisSol = openEntryExposureSol;
+    const totalBasisSol = openEntryExposureSol + closedEntryBasisSol;
     const totalPnlPct = totalBasisSol > 0 ? (totalPnlSol / totalBasisSol) * 100 : 0;
     const winRatePct = closedPositions > 0 ? (winningClosedPositions / closedPositions) * 100 : 0;
 
@@ -657,6 +662,7 @@ export class Store {
       openPositions,
       closedPositions,
       openEntryExposureSol,
+      totalBasisSol,
       openCurrentValueSol,
       unrealizedPnlSol,
       unrealizedPnlPct,

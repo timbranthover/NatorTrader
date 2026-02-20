@@ -7,6 +7,8 @@
     "node": ">=20"
   },
   "scripts": {
+    "start": "corepack pnpm dev",
+    "howto": "node scripts/howto.cjs",
     "wallet:new": "corepack pnpm --filter @autotrader/bot wallet:new",
     "dev": "cross-env MODE=paper concurrently -k -n BOT,WEB -c yellow,cyan \"corepack pnpm --filter @autotrader/bot dev\" \"corepack pnpm --filter @autotrader/web dev\"",
     "live": "cross-env MODE=live concurrently -k -n BOT,WEB -c yellow,cyan \"corepack pnpm --filter @autotrader/bot dev\" \"corepack pnpm --filter @autotrader/web dev\"",

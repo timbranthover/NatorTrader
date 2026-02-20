@@ -30,6 +30,12 @@
 
   let killSwitchActive = false;
   let walletPubkeyCached = "";
+  const PANEL_REFRESH_MS = 12000;
+  const STATUS_FALLBACK_REFRESH_MS = 30000;
+  let lastPositionsSig = "";
+  let lastPerfSig = "";
+  let lastActivitySig = "";
+  let lastKnownMode = "paper";
 
   function fmtNumber(value, digits = 4) {
     const n = Number(value);
@@ -58,7 +64,7 @@
     line.className = `line ${klass || "info"}`;
     line.textContent = text;
     logEl.appendChild(line);
-    while (logEl.childElementCount > 600) {
+    while (logEl.childElementCount > 350) {
       logEl.removeChild(logEl.firstChild);
     }
     logEl.scrollTop = logEl.scrollHeight;
@@ -88,6 +94,7 @@
     const system = payload.system || {};
     const scanner = payload.scanner || {};
     const risk = payload.risk || {};
+    lastKnownMode = String(payload.mode || system.mode || lastKnownMode).toLowerCase();
 
     statusNodes.mode.textContent = String(payload.mode || system.mode || "PAPER").toUpperCase();
     statusNodes.mode.className = `stat-val ${payload.mode === "live" || system.mode === "live" ? "warn" : "ok"}`;
@@ -180,6 +187,7 @@
 
     container.className = "";
     container.innerHTML = "";
+    const fragment = document.createDocumentFragment();
 
     positions.forEach((position) => {
       const row = document.createElement("div");
@@ -207,7 +215,7 @@
 
       const meta = document.createElement("div");
       meta.className = "position-meta";
-      meta.innerHTML = [
+      meta.textContent = [
         `ENTRY ${fmtNumber(position.entryPriceSol, 8)} SOL/TKN`,
         `NOW ${fmtNumber(currentQuote, 4)} SOL`,
         `PNL ${fmtSigned(pnlPct, 2)}%`,
@@ -218,8 +226,10 @@
 
       row.appendChild(head);
       row.appendChild(meta);
-      container.appendChild(row);
+      fragment.appendChild(row);
     });
+
+    container.appendChild(fragment);
   }
 
   function activityClassForEvent(event) {
@@ -240,6 +250,7 @@
       return;
     }
 
+    const fragment = document.createDocumentFragment();
     items.forEach((event) => {
       const line = document.createElement("div");
       line.className = `line activity-line ${activityClassForEvent(event)}`;
@@ -254,38 +265,60 @@
         text += ` ERROR=${event.error}`;
       }
       line.textContent = text;
-      activityLogEl.appendChild(line);
+      fragment.appendChild(line);
     });
+    activityLogEl.appendChild(fragment);
     activityLogEl.scrollTop = activityLogEl.scrollHeight;
   }
 
-  async function fetchStatusAndPanels() {
-    const [statusRes, positionsRes, perfRes, activityRes] = await Promise.all([
-      fetch("/api/status"),
-      fetch("/api/positions"),
-      fetch("/api/performance"),
-      fetch("/api/activity?limit=120"),
-    ]);
+  function stableSignature(value) {
+    try {
+      return JSON.stringify(value ?? null);
+    } catch {
+      return String(Date.now());
+    }
+  }
+
+  async function fetchStatusOnly() {
+    const statusRes = await fetch("/api/status");
 
     if (statusRes.ok) {
       const payload = await statusRes.json();
       updateStatus(payload);
     }
+  }
 
-    if (positionsRes.ok) {
-      const payload = await positionsRes.json();
-      renderPositions(payload.positions || []);
+  async function fetchDashboardOnly() {
+    const dashboardRes = await fetch("/api/dashboard?limit=80");
+    if (!dashboardRes.ok) {
+      return;
+    }
+    const payload = await dashboardRes.json();
+    const positions = payload.positions || [];
+    const performance = payload.performance || {};
+    const events = payload.events || [];
+
+    const positionsSig = stableSignature(positions);
+    if (positionsSig !== lastPositionsSig) {
+      renderPositions(positions);
+      lastPositionsSig = positionsSig;
     }
 
-    if (perfRes.ok) {
-      const payload = await perfRes.json();
-      updatePerformance(payload.performance || {});
+    const perfSig = stableSignature(performance);
+    if (perfSig !== lastPerfSig) {
+      updatePerformance(performance);
+      lastPerfSig = perfSig;
     }
 
-    if (activityRes.ok) {
-      const payload = await activityRes.json();
-      renderActivity(payload.events || []);
+    const activitySig = stableSignature(events);
+    if (activitySig !== lastActivitySig) {
+      renderActivity(events);
+      lastActivitySig = activitySig;
     }
+  }
+
+  async function fetchStatusAndPanels() {
+    await Promise.all([fetchStatusOnly(), fetchDashboardOnly()]);
   }
 
   async function bootstrapLogs() {
@@ -340,7 +373,7 @@
     source.addEventListener("status", (event) => {
       try {
         const payload = JSON.parse(event.data);
-        updateStatus({ ...payload, mode: payload.system?.mode || String(statusNodes.mode.textContent).toLowerCase() });
+        updateStatus({ ...payload, mode: payload.system?.mode || lastKnownMode });
       } catch {
         // ignored
       }
@@ -350,10 +383,16 @@
     };
 
     setInterval(() => {
-      fetchStatusAndPanels().catch((error) => {
+      fetchDashboardOnly().catch((error) => {
+        appendLog(`ERROR DASHBOARD FETCH ${String(error)}`, "err");
+      });
+    }, PANEL_REFRESH_MS);
+
+    setInterval(() => {
+      fetchStatusOnly().catch((error) => {
         appendLog(`ERROR STATUS FETCH ${String(error)}`, "err");
       });
-    }, 5000);
+    }, STATUS_FALLBACK_REFRESH_MS);
   }
 
   btnConnect?.addEventListener("click", async () => {

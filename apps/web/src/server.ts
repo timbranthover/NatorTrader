@@ -28,6 +28,40 @@ const publicDir = path.resolve(currentDir, "../public");
 
 app.use(express.json());
 
+function serializeActivePositions(): Array<{
+  id: number;
+  tokenMint: string;
+  openedTs: string;
+  entryPriceSol: number;
+  entryNotionalSol: number;
+  quantityRaw: string;
+  quantityRemainingRaw: string;
+  tp1Hit: boolean;
+  tp2Hit: boolean;
+  stopLossPct: number;
+  takeProfit1Pct: number;
+  takeProfit2Pct: number;
+  timeStopMinutes: number;
+  metadata: Record<string, unknown>;
+}> {
+  return store.listActivePositions().map((position) => ({
+    id: position.id,
+    tokenMint: position.tokenMint,
+    openedTs: position.openedTs,
+    entryPriceSol: position.entryPriceSol,
+    entryNotionalSol: position.entryNotionalSol,
+    quantityRaw: position.quantityRaw,
+    quantityRemainingRaw: position.quantityRemainingRaw,
+    tp1Hit: position.tp1Hit,
+    tp2Hit: position.tp2Hit,
+    stopLossPct: position.stopLossPct,
+    takeProfit1Pct: position.takeProfit1Pct,
+    takeProfit2Pct: position.takeProfit2Pct,
+    timeStopMinutes: position.timeStopMinutes,
+    metadata: position.metadata,
+  }));
+}
+
 app.get("/assets/ui-kit.css", (_req, res) => {
   res.sendFile(uiKitCssPath);
 });
@@ -52,6 +86,17 @@ app.get("/api/activity", (req, res) => {
   const limit = Number.isFinite(limitRaw) ? Math.max(10, Math.min(300, Math.floor(limitRaw))) : 80;
   const events = store.getRecentActivity(limit);
   res.json({ events });
+});
+
+app.get("/api/dashboard", (req, res) => {
+  const limitRaw = Number(req.query.limit ?? 80);
+  const limit = Number.isFinite(limitRaw) ? Math.max(20, Math.min(200, Math.floor(limitRaw))) : 80;
+  res.json({
+    positions: serializeActivePositions(),
+    performance: store.getPerformanceSnapshot(),
+    events: store.getRecentActivity(limit),
+    updatedTs: new Date().toISOString(),
+  });
 });
 
 app.get("/api/logs", (_req, res) => {
@@ -110,23 +155,7 @@ app.get("/api/config", (_req, res) => {
 });
 
 app.get("/api/positions", (_req, res) => {
-  const positions = store.listActivePositions().map((position) => ({
-    id: position.id,
-    tokenMint: position.tokenMint,
-    openedTs: position.openedTs,
-    entryPriceSol: position.entryPriceSol,
-    entryNotionalSol: position.entryNotionalSol,
-    quantityRaw: position.quantityRaw,
-    quantityRemainingRaw: position.quantityRemainingRaw,
-    tp1Hit: position.tp1Hit,
-    tp2Hit: position.tp2Hit,
-    stopLossPct: position.stopLossPct,
-    takeProfit1Pct: position.takeProfit1Pct,
-    takeProfit2Pct: position.takeProfit2Pct,
-    timeStopMinutes: position.timeStopMinutes,
-    metadata: position.metadata,
-  }));
-  res.json({ positions });
+  res.json({ positions: serializeActivePositions() });
 });
 
 app.get("/api/status", async (_req, res) => {
@@ -217,9 +246,16 @@ app.get("/events/logs", (req, res) => {
       scanner: scanner?.value ?? {},
       risk: risk?.value ?? {},
     };
+    const serialized = JSON.stringify(payload);
+    if (serialized === lastStatusPayload) {
+      return;
+    }
+    lastStatusPayload = serialized;
     res.write(`event: status\n`);
-    res.write(`data: ${JSON.stringify(payload)}\n\n`);
+    res.write(`data: ${serialized}\n\n`);
   };
+
+  let lastStatusPayload = "";
 
   pushLogs();
   pushStatus();
@@ -227,7 +263,7 @@ app.get("/events/logs", (req, res) => {
   const timer = setInterval(() => {
     pushLogs();
     pushStatus();
-  }, 1000);
+  }, 2000);
 
   req.on("close", () => {
     clearInterval(timer);
