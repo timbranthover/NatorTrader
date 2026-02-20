@@ -527,6 +527,8 @@ export class AutoTraderBot {
           routeSummary: execution.routeSummary,
           openedBy: "AUTO_ENTRY",
           openedTs: new Date().toISOString(),
+          realizedReturnedSol: 0,
+          realizedPnlSol: 0,
         },
       });
 
@@ -712,11 +714,20 @@ export class AutoTraderBot {
           },
         });
 
+        const sellRatio = toNumber(action.sellAmountRaw) / Math.max(1, toNumber(position.quantityRaw));
+        const entryPortionSol = position.entryNotionalSol * sellRatio;
+        const returnedSol = toNumber(execution.outAmountRaw) / 1_000_000_000;
+        const realizedPnlSolDelta = returnedSol - entryPortionSol;
+        const realizedReturnedSolPrev = Number(position.metadata["realizedReturnedSol"] ?? 0);
+        const realizedPnlSolPrev = Number(position.metadata["realizedPnlSol"] ?? 0);
+
         const newRemaining = (BigInt(position.quantityRemainingRaw) - BigInt(action.sellAmountRaw)).toString();
         const mergedMetadata = {
           ...nextMetadata,
           lastExitReason: action.reason,
           lastExitTs: new Date().toISOString(),
+          realizedReturnedSol: realizedReturnedSolPrev + returnedSol,
+          realizedPnlSol: realizedPnlSolPrev + realizedPnlSolDelta,
         };
         if (BigInt(newRemaining) <= 0n) {
           this.store.closePosition(position.id, mergedMetadata);

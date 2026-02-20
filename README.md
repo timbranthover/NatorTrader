@@ -164,9 +164,12 @@ Reset DB:
 ## API Endpoints
 
 - `GET /api/status`
+- `GET /api/performance`
+- `GET /api/activity`
 - `GET /api/config`
 - `GET /api/positions`
 - `GET /api/logs`
+- `POST /api/kill-switch` with `{ "active": true|false }`
 - `GET /events/logs` (SSE)
 - `GET /legacy`
 

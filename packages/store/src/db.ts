@@ -66,6 +66,34 @@ export interface PositionInsert {
   metadata?: JsonPayload;
 }
 
+export interface PerformanceSnapshot {
+  openPositions: number;
+  closedPositions: number;
+  openEntryExposureSol: number;
+  openCurrentValueSol: number;
+  unrealizedPnlSol: number;
+  unrealizedPnlPct: number;
+  realizedPnlSol: number;
+  totalPnlSol: number;
+  totalPnlPct: number;
+  winningClosedPositions: number;
+  losingClosedPositions: number;
+  winRatePct: number;
+}
+
+export interface ActivityEvent {
+  id: number;
+  ts: string;
+  side: "BUY" | "SELL";
+  status: string;
+  inputMint: string;
+  outputMint: string;
+  inAmount: string;
+  outAmount: string | null;
+  signature: string | null;
+  error: string | null;
+}
+
 function parseJson(text: string | null): JsonPayload {
   if (!text) {
     return {};
@@ -569,6 +597,111 @@ export class Store {
       .get(new Date(Date.now() - 60 * 60 * 1000).toISOString()) as { count: number };
 
     return { poolsSeenCount: pools.count, candidatesCount: candidates.count };
+  }
+
+  public getPerformanceSnapshot(): PerformanceSnapshot {
+    const rows = this.db
+      .prepare(
+        `SELECT status, entry_notional_sol, quantity_raw, quantity_remaining_raw, metadata_json
+         FROM positions`,
+      )
+      .all() as Array<{
+      status: string;
+      entry_notional_sol: number;
+      quantity_raw: string;
+      quantity_remaining_raw: string;
+      metadata_json: string;
+    }>;
+
+    let openPositions = 0;
+    let closedPositions = 0;
+    let openEntryExposureSol = 0;
+    let openCurrentValueSol = 0;
+    let realizedPnlSol = 0;
+    let winningClosedPositions = 0;
+    let losingClosedPositions = 0;
+
+    for (const row of rows) {
+      const metadata = parseJson(row.metadata_json);
+      const quantity = Number(row.quantity_raw);
+      const remaining = Number(row.quantity_remaining_raw);
+      const ratio = Number.isFinite(quantity) && quantity > 0 && Number.isFinite(remaining) ? remaining / quantity : 0;
+      const entryRemainingSol = row.entry_notional_sol * ratio;
+      const currentValueSol = Number(metadata.currentValueSol ?? 0);
+      const positionRealizedPnlSol = Number(metadata.realizedPnlSol ?? 0);
+
+      if (row.status === "OPEN") {
+        openPositions += 1;
+        openEntryExposureSol += entryRemainingSol;
+        openCurrentValueSol += currentValueSol;
+      } else if (row.status === "CLOSED") {
+        closedPositions += 1;
+        if (positionRealizedPnlSol > 0) {
+          winningClosedPositions += 1;
+        } else if (positionRealizedPnlSol < 0) {
+          losingClosedPositions += 1;
+        }
+      }
+
+      realizedPnlSol += positionRealizedPnlSol;
+    }
+
+    const unrealizedPnlSol = openCurrentValueSol - openEntryExposureSol;
+    const unrealizedPnlPct = openEntryExposureSol > 0 ? (unrealizedPnlSol / openEntryExposureSol) * 100 : 0;
+    const totalPnlSol = realizedPnlSol + unrealizedPnlSol;
+    const totalBasisSol = openEntryExposureSol;
+    const totalPnlPct = totalBasisSol > 0 ? (totalPnlSol / totalBasisSol) * 100 : 0;
+    const winRatePct = closedPositions > 0 ? (winningClosedPositions / closedPositions) * 100 : 0;
+
+    return {
+      openPositions,
+      closedPositions,
+      openEntryExposureSol,
+      openCurrentValueSol,
+      unrealizedPnlSol,
+      unrealizedPnlPct,
+      realizedPnlSol,
+      totalPnlSol,
+      totalPnlPct,
+      winningClosedPositions,
+      losingClosedPositions,
+      winRatePct,
+    };
+  }
+
+  public getRecentActivity(limit = 80): ActivityEvent[] {
+    const rows = this.db
+      .prepare(
+        `SELECT id, ts, side, status, input_mint, output_mint, in_amount, out_amount, signature, error
+         FROM trades
+         ORDER BY id DESC
+         LIMIT ?`,
+      )
+      .all(limit) as Array<{
+      id: number;
+      ts: string;
+      side: "BUY" | "SELL";
+      status: string;
+      input_mint: string;
+      output_mint: string;
+      in_amount: string;
+      out_amount: string | null;
+      signature: string | null;
+      error: string | null;
+    }>;
+
+    return rows.reverse().map((row) => ({
+      id: row.id,
+      ts: row.ts,
+      side: row.side,
+      status: row.status,
+      inputMint: row.input_mint,
+      outputMint: row.output_mint,
+      inAmount: row.in_amount,
+      outAmount: row.out_amount,
+      signature: row.signature,
+      error: row.error,
+    }));
   }
 
   public getDbPath(): string {

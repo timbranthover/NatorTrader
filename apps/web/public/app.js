@@ -1,5 +1,6 @@
 (function () {
   const logEl = document.getElementById("log");
+  const activityLogEl = document.getElementById("activity-log");
   const btnConnect = document.getElementById("btn-connect");
   const btnSwap = document.getElementById("btn-swap");
 
@@ -16,12 +17,28 @@
     pools: document.getElementById("pools-val"),
     candidates: document.getElementById("candidates-val"),
     positions: document.getElementById("positions-list"),
+    perfCounts: document.getElementById("perf-counts-val"),
+    perfEntry: document.getElementById("perf-entry-val"),
+    perfCurrent: document.getElementById("perf-current-val"),
+    perfUnreal: document.getElementById("perf-unreal-val"),
+    perfRealized: document.getElementById("perf-realized-val"),
+    perfTotal: document.getElementById("perf-total-val"),
+    perfWinrate: document.getElementById("perf-winrate-val"),
   };
+
+  let killSwitchActive = false;
 
   function fmtNumber(value, digits = 4) {
     const n = Number(value);
     if (!Number.isFinite(n)) return "0.0000";
     return n.toFixed(digits);
+  }
+
+  function fmtSigned(value, digits = 4) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "0.0000";
+    const sign = n > 0 ? "+" : "";
+    return `${sign}${n.toFixed(digits)}`;
   }
 
   function classForLog(level) {
@@ -38,7 +55,7 @@
     line.className = `line ${klass || "info"}`;
     line.textContent = text;
     logEl.appendChild(line);
-    while (logEl.childElementCount > 700) {
+    while (logEl.childElementCount > 600) {
       logEl.removeChild(logEl.firstChild);
     }
     logEl.scrollTop = logEl.scrollHeight;
@@ -49,6 +66,19 @@
     const date = new Date(ts);
     if (Number.isNaN(date.getTime())) return "N/A";
     return date.toISOString().replace("T", " ").replace("Z", "Z");
+  }
+
+  function formatTsShort(ts) {
+    if (!ts) return "N/A";
+    const date = new Date(ts);
+    if (Number.isNaN(date.getTime())) return "N/A";
+    return date.toISOString().slice(11, 19);
+  }
+
+  function updateKillButton() {
+    if (!btnSwap) return;
+    btnSwap.textContent = killSwitchActive ? "RESUME ENTRIES" : "HALT ENTRIES";
+    btnSwap.classList.toggle("kill-active", killSwitchActive);
   }
 
   function updateStatus(payload) {
@@ -69,9 +99,10 @@
     statusNodes.balance.textContent = `${fmtNumber(system.walletBalanceSol, 4)} SOL`;
     statusNodes.balance.className = "stat-val";
 
-    const kill = Boolean(risk.killSwitchActive);
-    statusNodes.kill.textContent = kill ? "ACTIVE" : "OFF";
-    statusNodes.kill.className = `stat-val ${kill ? "err" : "ok"}`;
+    killSwitchActive = Boolean(risk.killSwitchActive);
+    statusNodes.kill.textContent = killSwitchActive ? "ACTIVE" : "OFF";
+    statusNodes.kill.className = `stat-val ${killSwitchActive ? "err" : "ok"}`;
+    updateKillButton();
 
     statusNodes.risk.textContent = `${fmtNumber(risk.atRiskSol, 4)} / ${fmtNumber(risk.maxSolAtRisk, 4)} SOL`;
     statusNodes.risk.className = "stat-val";
@@ -91,6 +122,35 @@
 
     statusNodes.candidates.textContent = String(scanner.candidatesCount ?? 0);
     statusNodes.candidates.className = "stat-val";
+  }
+
+  function updatePerformance(performance) {
+    const perf = performance || {};
+    statusNodes.perfCounts.textContent = `${perf.openPositions ?? 0} / ${perf.closedPositions ?? 0}`;
+    statusNodes.perfCounts.className = "stat-val";
+
+    statusNodes.perfEntry.textContent = `${fmtNumber(perf.openEntryExposureSol, 4)} SOL`;
+    statusNodes.perfEntry.className = "stat-val";
+
+    statusNodes.perfCurrent.textContent = `${fmtNumber(perf.openCurrentValueSol, 4)} SOL`;
+    statusNodes.perfCurrent.className = "stat-val";
+
+    const unrealized = Number(perf.unrealizedPnlSol ?? 0);
+    const unrealizedPct = Number(perf.unrealizedPnlPct ?? 0);
+    statusNodes.perfUnreal.textContent = `${fmtSigned(unrealized, 4)} SOL (${fmtSigned(unrealizedPct, 2)}%)`;
+    statusNodes.perfUnreal.className = `stat-val ${unrealized >= 0 ? "ok" : "err"}`;
+
+    const realized = Number(perf.realizedPnlSol ?? 0);
+    statusNodes.perfRealized.textContent = `${fmtSigned(realized, 4)} SOL`;
+    statusNodes.perfRealized.className = `stat-val ${realized >= 0 ? "ok" : "err"}`;
+
+    const total = Number(perf.totalPnlSol ?? 0);
+    const totalPct = Number(perf.totalPnlPct ?? 0);
+    statusNodes.perfTotal.textContent = `${fmtSigned(total, 4)} SOL (${fmtSigned(totalPct, 2)}%)`;
+    statusNodes.perfTotal.className = `stat-val ${total >= 0 ? "ok" : "err"}`;
+
+    statusNodes.perfWinrate.textContent = `${fmtNumber(perf.winRatePct, 2)}%`;
+    statusNodes.perfWinrate.className = "stat-val";
   }
 
   function renderPositions(positions) {
@@ -134,7 +194,7 @@
       meta.innerHTML = [
         `ENTRY ${fmtNumber(position.entryPriceSol, 8)} SOL/TKN`,
         `NOW ${fmtNumber(currentQuote, 4)} SOL`,
-        `PNL ${fmtNumber(pnlPct, 2)}%`,
+        `PNL ${fmtSigned(pnlPct, 2)}%`,
         `TP ${position.takeProfit1Pct}%/${position.takeProfit2Pct}%`,
         `SL -${position.stopLossPct}%`,
         `T-${fmtNumber(remaining, 1)}M`,
@@ -146,15 +206,69 @@
     });
   }
 
-  async function fetchStatusAndPositions() {
-    const [statusRes, positionsRes] = await Promise.all([fetch("/api/status"), fetch("/api/positions")]);
+  function activityClassForEvent(event) {
+    if (event.status === "FAILED") return "activity-err";
+    if (event.status === "PAPER_FILLED" || event.status === "PAPER_EXIT" || event.status === "CONFIRMED") return "activity-ok";
+    return "activity-info";
+  }
+
+  function renderActivity(events) {
+    if (!activityLogEl) return;
+    activityLogEl.innerHTML = "";
+    const items = events || [];
+    if (items.length === 0) {
+      const placeholder = document.createElement("div");
+      placeholder.className = "line dim";
+      placeholder.textContent = "NO TRADE ACTIVITY YET";
+      activityLogEl.appendChild(placeholder);
+      return;
+    }
+
+    items.forEach((event) => {
+      const line = document.createElement("div");
+      line.className = `line activity-line ${activityClassForEvent(event)}`;
+      const tokenMint = event.side === "BUY" ? event.outputMint : event.inputMint;
+      const sideAmountSol = event.side === "BUY"
+        ? Number(event.inAmount) / 1_000_000_000
+        : Number(event.outAmount || 0) / 1_000_000_000;
+      const amountText = Number.isFinite(sideAmountSol) ? sideAmountSol.toFixed(4) : "0.0000";
+
+      let text = `${formatTsShort(event.ts)} ${event.side} ${amountText} SOL ${event.side === "BUY" ? "->" : "<-"} ${tokenMint} [${event.status}]`;
+      if (event.error) {
+        text += ` ERROR=${event.error}`;
+      }
+      line.textContent = text;
+      activityLogEl.appendChild(line);
+    });
+    activityLogEl.scrollTop = activityLogEl.scrollHeight;
+  }
+
+  async function fetchStatusAndPanels() {
+    const [statusRes, positionsRes, perfRes, activityRes] = await Promise.all([
+      fetch("/api/status"),
+      fetch("/api/positions"),
+      fetch("/api/performance"),
+      fetch("/api/activity?limit=120"),
+    ]);
+
     if (statusRes.ok) {
       const payload = await statusRes.json();
       updateStatus(payload);
     }
+
     if (positionsRes.ok) {
       const payload = await positionsRes.json();
       renderPositions(payload.positions || []);
+    }
+
+    if (perfRes.ok) {
+      const payload = await perfRes.json();
+      updatePerformance(payload.performance || {});
+    }
+
+    if (activityRes.ok) {
+      const payload = await activityRes.json();
+      renderActivity(payload.events || []);
     }
   }
 
@@ -170,12 +284,33 @@
     return lastId;
   }
 
+  async function toggleKillSwitch() {
+    const nextState = !killSwitchActive;
+    const label = nextState ? "HALT ENTRIES" : "RESUME ENTRIES";
+    appendLog(`STEP ${label}: REQUESTED`, "warn");
+    const res = await fetch("/api/kill-switch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: nextState }),
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const payload = await res.json();
+    killSwitchActive = Boolean(payload.active);
+    updateKillButton();
+    appendLog(
+      killSwitchActive ? "WARNING: KILL SWITCH ACTIVE (NEW ENTRIES HALTED)" : "CONFIRMED: KILL SWITCH CLEARED",
+      killSwitchActive ? "warn" : "ok",
+    );
+  }
+
   async function init() {
     appendLog("===== BRANTSWAP TERMINAL BOOT =====", "hi");
     appendLog("CONNECTING STATUS BUS...", "dim");
     appendLog("CONNECTING LOG STREAM...", "dim");
     const lastId = await bootstrapLogs();
-    await fetchStatusAndPositions();
+    await fetchStatusAndPanels();
 
     const source = new EventSource(`/events/logs?lastId=${lastId}`);
     source.addEventListener("log", (event) => {
@@ -199,7 +334,7 @@
     };
 
     setInterval(() => {
-      fetchStatusAndPositions().catch((error) => {
+      fetchStatusAndPanels().catch((error) => {
         appendLog(`ERROR STATUS FETCH ${String(error)}`, "err");
       });
     }, 5000);
@@ -207,12 +342,12 @@
 
   btnConnect?.addEventListener("click", async () => {
     btnConnect.classList.add("pulse");
-    appendLog("STEP CONNECT: STATUS REFRESH REQUESTED", "info");
+    appendLog("STEP REFRESH: STATUS+PERFORMANCE REQUESTED", "info");
     try {
-      await fetchStatusAndPositions();
-      appendLog("CONFIRMED: STATUS REFRESH COMPLETE", "ok");
+      await fetchStatusAndPanels();
+      appendLog("CONFIRMED: PANEL REFRESH COMPLETE", "ok");
     } catch (error) {
-      appendLog(`ERROR: CONNECT FAILED ${String(error)}`, "err");
+      appendLog(`ERROR: REFRESH FAILED ${String(error)}`, "err");
     } finally {
       btnConnect.classList.remove("pulse");
     }
@@ -220,15 +355,11 @@
 
   btnSwap?.addEventListener("click", async () => {
     btnSwap.classList.add("pulse");
-    appendLog("STEP EXECUTE: PING REQUESTED", "info");
     try {
-      const res = await fetch("/api/ping");
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-      appendLog("CONFIRMED: EXECUTE PING ONLINE", "ok");
+      await toggleKillSwitch();
+      await fetchStatusAndPanels();
     } catch (error) {
-      appendLog(`ERROR: EXECUTE PING FAILED ${String(error)}`, "err");
+      appendLog(`ERROR: KILL SWITCH UPDATE FAILED ${String(error)}`, "err");
     } finally {
       btnSwap.classList.remove("pulse");
     }

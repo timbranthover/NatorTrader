@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import express from "express";
@@ -41,9 +42,53 @@ app.get("/api/ping", (_req, res) => {
   res.json({ ok: true, ts: new Date().toISOString() });
 });
 
+app.get("/api/performance", (_req, res) => {
+  const performance = store.getPerformanceSnapshot();
+  res.json({ performance });
+});
+
+app.get("/api/activity", (req, res) => {
+  const limitRaw = Number(req.query.limit ?? 80);
+  const limit = Number.isFinite(limitRaw) ? Math.max(10, Math.min(300, Math.floor(limitRaw))) : 80;
+  const events = store.getRecentActivity(limit);
+  res.json({ events });
+});
+
 app.get("/api/logs", (_req, res) => {
   const logs = store.getRecentLogs(250);
   res.json({ logs });
+});
+
+app.post("/api/kill-switch", (req, res) => {
+  const requested = req.body?.active;
+  if (typeof requested !== "boolean") {
+    res.status(400).json({ ok: false, error: "active(boolean) is required" });
+    return;
+  }
+
+  const killPath = config.KILL_SWITCH_FILE_PATH;
+  if (requested) {
+    fs.mkdirSync(path.dirname(killPath), { recursive: true });
+    if (!fs.existsSync(killPath)) {
+      fs.writeFileSync(killPath, `KILL SWITCH ENABLED ${new Date().toISOString()}\n`);
+      logger.warn("KILL_SWITCH_ON", "WARNING KILL SWITCH ENABLED VIA UI", { path: killPath });
+    }
+  } else {
+    if (fs.existsSync(killPath)) {
+      fs.rmSync(killPath, { force: true });
+      logger.ok("KILL_SWITCH_OFF", "CONFIRMED KILL SWITCH DISABLED VIA UI", { path: killPath });
+    }
+  }
+
+  const riskState = store.getRuntimeState("risk_status");
+  store.setRuntimeState("risk_status", {
+    ...(riskState?.value ?? {}),
+    killSwitchActive: requested,
+    killSwitchFilePath: killPath,
+    killSwitchUpdatedTs: new Date().toISOString(),
+  });
+
+  res.json({ ok: true, active: requested, path: killPath });
 });
 
 app.get("/api/config", (_req, res) => {

@@ -210,6 +210,17 @@ button:disabled {
   color: #071105;
 }
 
+.btn-swap.kill-active {
+  border-color: var(--err);
+  color: var(--err);
+}
+
+.btn-swap.kill-active:hover,
+.btn-swap.kill-active:focus-visible {
+  background: var(--err);
+  color: #160700;
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;
@@ -229,12 +240,60 @@ button:disabled {
   word-break: break-word;
 }
 
+#activity-log {
+  height: 180px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  background: var(--log);
+  padding: 10px;
+  font-size: 12px;
+  letter-spacing: 1px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 #log .line {
   margin-bottom: 4px;
 }
 
 #log .line:last-child {
   margin-bottom: 0;
+}
+
+#activity-log .line {
+  margin-bottom: 4px;
+}
+
+#activity-log .line:last-child {
+  margin-bottom: 0;
+}
+
+#log,
+#activity-log {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) var(--log);
+}
+
+#log::-webkit-scrollbar,
+#activity-log::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+#log::-webkit-scrollbar-track,
+#activity-log::-webkit-scrollbar-track {
+  background: #0a0600;
+}
+
+#log::-webkit-scrollbar-thumb,
+#activity-log::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border: 1px solid #3a2800;
+}
+
+#log::-webkit-scrollbar-thumb:hover,
+#activity-log::-webkit-scrollbar-thumb:hover {
+  background: var(--dim);
 }
 
 .blink {
@@ -324,6 +383,22 @@ button:disabled {
   word-break: break-word;
 }
 
+.activity-line {
+  text-transform: uppercase;
+}
+
+.activity-ok {
+  color: var(--ok);
+}
+
+.activity-err {
+  color: var(--err);
+}
+
+.activity-info {
+  color: var(--text);
+}
+
 body.theme-legacy {
   --bg: #111;
   --panel: #0b130b;
@@ -396,6 +471,11 @@ body.theme-legacy {
 
   #log {
     height: 240px;
+    font-size: 11px;
+  }
+
+  #activity-log {
+    height: 180px;
     font-size: 11px;
   }
 }
